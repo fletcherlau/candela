@@ -13,13 +13,15 @@ type fetchCall struct {
 }
 
 type fakeQuoteSource struct {
-	bars  map[string][]Bar // key: tsCode，返回落在请求区间内的部分
-	errs  map[string]error // key: tsCode
-	calls []fetchCall
+	bars     map[string][]Bar       // key: tsCode，返回落在请求区间内的部分
+	factors  map[string][]AdjFactor // key: tsCode
+	errs     map[string]error       // key: tsCode
+	dailyReq []fetchCall
+	adjReq   []fetchCall
 }
 
 func (f *fakeQuoteSource) FetchDaily(ctx context.Context, tsCode, startDate, endDate string) ([]Bar, error) {
-	f.calls = append(f.calls, fetchCall{tsCode, startDate, endDate})
+	f.dailyReq = append(f.dailyReq, fetchCall{tsCode, startDate, endDate})
 	if err := f.errs[tsCode]; err != nil {
 		return nil, err
 	}
@@ -32,19 +34,35 @@ func (f *fakeQuoteSource) FetchDaily(ctx context.Context, tsCode, startDate, end
 	return out, nil
 }
 
-type upsertCall struct {
-	n int
+func (f *fakeQuoteSource) FetchAdj(ctx context.Context, tsCode, startDate, endDate string) ([]AdjFactor, error) {
+	f.adjReq = append(f.adjReq, fetchCall{tsCode, startDate, endDate})
+	if err := f.errs[tsCode]; err != nil {
+		return nil, err
+	}
+	var out []AdjFactor
+	for _, a := range f.factors[tsCode] {
+		if a.TradeDate >= startDate && a.TradeDate <= endDate {
+			out = append(out, a)
+		}
+	}
+	return out, nil
 }
 
 type fakeStore struct {
 	instruments []Instrument
-	latest      map[string]string // tsCode -> 最新交易日
-	rows        map[string]Bar    // tsCode|tradeDate -> Bar，验证幂等
-	upserts     []upsertCall
+	latestDaily map[string]string
+	latestAdj   map[string]string
+	dailyRows   map[string]Bar       // tsCode|tradeDate -> Bar，验证幂等
+	adjRows     map[string]AdjFactor // 同上
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{latest: map[string]string{}, rows: map[string]Bar{}}
+	return &fakeStore{
+		latestDaily: map[string]string{},
+		latestAdj:   map[string]string{},
+		dailyRows:   map[string]Bar{},
+		adjRows:     map[string]AdjFactor{},
+	}
 }
 
 func (f *fakeStore) ListSyncEnabled(ctx context.Context) ([]Instrument, error) {
@@ -52,25 +70,41 @@ func (f *fakeStore) ListSyncEnabled(ctx context.Context) ([]Instrument, error) {
 }
 
 func (f *fakeStore) LatestDailyDate(ctx context.Context, tsCode string) (string, error) {
-	return f.latest[tsCode], nil
+	return f.latestDaily[tsCode], nil
+}
+
+func (f *fakeStore) LatestAdjDate(ctx context.Context, tsCode string) (string, error) {
+	return f.latestAdj[tsCode], nil
 }
 
 func (f *fakeStore) UpsertDaily(ctx context.Context, bars []Bar) (int, error) {
-	f.upserts = append(f.upserts, upsertCall{len(bars)})
 	for _, b := range bars {
-		key := b.TsCode + "|" + b.TradeDate
-		f.rows[key] = b
-		if b.TradeDate > f.latest[b.TsCode] {
-			f.latest[b.TsCode] = b.TradeDate
+		f.dailyRows[b.TsCode+"|"+b.TradeDate] = b
+		if b.TradeDate > f.latestDaily[b.TsCode] {
+			f.latestDaily[b.TsCode] = b.TradeDate
 		}
 	}
 	return len(bars), nil
+}
+
+func (f *fakeStore) UpsertAdjFactors(ctx context.Context, factors []AdjFactor) (int, error) {
+	for _, a := range factors {
+		f.adjRows[a.TsCode+"|"+a.TradeDate] = a
+		if a.TradeDate > f.latestAdj[a.TsCode] {
+			f.latestAdj[a.TsCode] = a.TradeDate
+		}
+	}
+	return len(factors), nil
 }
 
 // --- 测试辅助 ---
 
 func bar(tsCode, date string) Bar {
 	return Bar{TsCode: tsCode, TradeDate: date, Close: 1.0}
+}
+
+func adj(tsCode, date string) AdjFactor {
+	return AdjFactor{TsCode: tsCode, TradeDate: date, AdjFactor: 1.5}
 }
 
 func fixedToday(date string) func() string { return func() string { return date } }
@@ -81,19 +115,58 @@ func TestIncrementalStartFromLatestPlusOne(t *testing.T) {
 	src := &fakeQuoteSource{bars: map[string][]Bar{"510300.SH": {bar("510300.SH", "20240111")}}}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
-	st.latest["510300.SH"] = "20240110"
+	st.latestDaily["510300.SH"] = "20240110"
+	st.latestAdj["510300.SH"] = "20240110"
 
 	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
 
-	if len(src.calls) != 1 {
-		t.Fatalf("expect 1 fetch, got %d", len(src.calls))
+	if len(src.dailyReq) != 1 || len(src.adjReq) != 1 {
+		t.Fatalf("expect 1 daily + 1 adj fetch, got %d/%d", len(src.dailyReq), len(src.adjReq))
 	}
-	if src.calls[0].start != "20240111" || src.calls[0].end != "20240120" {
-		t.Fatalf("expect range [20240111,20240120], got [%s,%s]", src.calls[0].start, src.calls[0].end)
+	if src.dailyReq[0].start != "20240111" || src.dailyReq[0].end != "20240120" {
+		t.Fatalf("expect range [20240111,20240120], got [%s,%s]", src.dailyReq[0].start, src.dailyReq[0].end)
+	}
+	if src.adjReq[0].start != "20240111" {
+		t.Fatalf("adj should use same range, got %s", src.adjReq[0].start)
 	}
 	if sum.Success != 1 || sum.Results[0].Fetched != 1 || sum.Results[0].Message != "ok" {
 		t.Fatalf("unexpected summary: %+v", sum)
+	}
+}
+
+func TestStartTakesOlderOfDailyAndAdj(t *testing.T) {
+	src := &fakeQuoteSource{}
+	st := newFakeStore()
+	st.instruments = []Instrument{{TsCode: "510300.SH"}}
+	st.latestDaily["510300.SH"] = "20240110"
+	st.latestAdj["510300.SH"] = "20240105"
+
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
+	sum := s.Run(context.Background(), nil)
+
+	if got := src.dailyReq[0].start; got != "20240106" {
+		t.Fatalf("expect start from older (adj) date +1 = 20240106, got %s", got)
+	}
+	if sum.Results[0].StartDate != "20240106" {
+		t.Fatalf("result startDate wrong: %+v", sum.Results[0])
+	}
+}
+
+func TestBackfillWhenAdjMissing(t *testing.T) {
+	src := &fakeQuoteSource{}
+	st := newFakeStore()
+	st.instruments = []Instrument{{TsCode: "510300.SH"}}
+	st.latestDaily["510300.SH"] = "20240110" // 日线有历史，因子无 → 全量回填
+
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
+	s.Run(context.Background(), nil)
+
+	if got := src.dailyReq[0].start; got != "20100101" {
+		t.Fatalf("expect backfill from default start, got %s", got)
+	}
+	if got := src.adjReq[0].start; got != "20100101" {
+		t.Fatalf("adj should also backfill from default start, got %s", got)
 	}
 }
 
@@ -105,8 +178,8 @@ func TestFullBackfillWhenNoHistory(t *testing.T) {
 	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
 
-	if src.calls[0].start != "20100101" {
-		t.Fatalf("expect backfill from default start 20100101, got %s", src.calls[0].start)
+	if src.dailyReq[0].start != "20100101" {
+		t.Fatalf("expect backfill from default start 20100101, got %s", src.dailyReq[0].start)
 	}
 	if sum.Results[0].StartDate != "20100101" {
 		t.Fatalf("result startDate wrong: %+v", sum.Results[0])
@@ -114,10 +187,11 @@ func TestFullBackfillWhenNoHistory(t *testing.T) {
 }
 
 func TestChunkingSplitsLongRange(t *testing.T) {
-	src := &fakeQuoteSource{bars: map[string][]Bar{}}
+	src := &fakeQuoteSource{}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
-	st.latest["510300.SH"] = "20240101"
+	st.latestDaily["510300.SH"] = "20240101"
+	st.latestAdj["510300.SH"] = "20240101"
 
 	s := NewSyncer(src, st, 10, "20100101", fixedToday("20240125"))
 	s.Run(context.Background(), nil)
@@ -128,27 +202,28 @@ func TestChunkingSplitsLongRange(t *testing.T) {
 		{"510300.SH", "20240112", "20240121"},
 		{"510300.SH", "20240122", "20240125"},
 	}
-	if len(src.calls) != len(want) {
-		t.Fatalf("expect %d chunks, got %d: %+v", len(want), len(src.calls), src.calls)
+	if len(src.dailyReq) != len(want) || len(src.adjReq) != len(want) {
+		t.Fatalf("expect %d chunks per api, got daily=%d adj=%d", len(want), len(src.dailyReq), len(src.adjReq))
 	}
 	for i, w := range want {
-		if src.calls[i] != w {
-			t.Fatalf("chunk %d: expect %+v, got %+v", i, w, src.calls[i])
+		if src.dailyReq[i] != w || src.adjReq[i] != w {
+			t.Fatalf("chunk %d: expect %+v, got daily=%+v adj=%+v", i, w, src.dailyReq[i], src.adjReq[i])
 		}
 	}
 }
 
 func TestShortCircuitWhenUpToDate(t *testing.T) {
-	src := &fakeQuoteSource{bars: map[string][]Bar{}}
+	src := &fakeQuoteSource{}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
-	st.latest["510300.SH"] = "20240120"
+	st.latestDaily["510300.SH"] = "20240120"
+	st.latestAdj["510300.SH"] = "20240120"
 
 	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
 
-	if len(src.calls) != 0 {
-		t.Fatalf("expect no fetch when up to date, got %d", len(src.calls))
+	if len(src.dailyReq) != 0 || len(src.adjReq) != 0 {
+		t.Fatalf("expect no fetch when up to date, got %d/%d", len(src.dailyReq), len(src.adjReq))
 	}
 	if sum.Results[0].Message != "已是最新" {
 		t.Fatalf("expect 已是最新, got %q", sum.Results[0].Message)
@@ -156,24 +231,28 @@ func TestShortCircuitWhenUpToDate(t *testing.T) {
 }
 
 func TestIdempotentRerun(t *testing.T) {
-	bars := []Bar{bar("510300.SH", "20240111"), bar("510300.SH", "20240112")}
-	src := &fakeQuoteSource{bars: map[string][]Bar{"510300.SH": bars}}
+	src := &fakeQuoteSource{
+		bars:    map[string][]Bar{"510300.SH": {bar("510300.SH", "20240111"), bar("510300.SH", "20240112")}},
+		factors: map[string][]AdjFactor{"510300.SH": {adj("510300.SH", "20240111"), adj("510300.SH", "20240112")}},
+	}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
 
 	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240112"))
 	first := s.Run(context.Background(), nil)
-	rowsAfterFirst := len(st.rows)
+	dailyAfterFirst, adjAfterFirst := len(st.dailyRows), len(st.adjRows)
 
 	second := s.Run(context.Background(), nil)
 
-	if len(st.rows) != rowsAfterFirst {
-		t.Fatalf("rerun changed row count: %d -> %d", rowsAfterFirst, len(st.rows))
+	if len(st.dailyRows) != dailyAfterFirst || len(st.adjRows) != adjAfterFirst {
+		t.Fatalf("rerun changed rows: daily %d->%d adj %d->%d",
+			dailyAfterFirst, len(st.dailyRows), adjAfterFirst, len(st.adjRows))
 	}
 	if second.Results[0].Message != "已是最新" {
 		t.Fatalf("second run should short-circuit, got %q", second.Results[0].Message)
 	}
-	if first.Results[0].Fetched != 2 || first.Results[0].Upserted != 2 {
+	// 2 条日线 + 2 条因子
+	if first.Results[0].Fetched != 4 || first.Results[0].Upserted != 4 {
 		t.Fatalf("first run counts wrong: %+v", first.Results[0])
 	}
 }
@@ -198,7 +277,7 @@ func TestSingleFailureDoesNotAbortOthers(t *testing.T) {
 }
 
 func TestSubsetSyncViaTsCodes(t *testing.T) {
-	src := &fakeQuoteSource{bars: map[string][]Bar{}}
+	src := &fakeQuoteSource{}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "A"}, {TsCode: "B"}}
 
@@ -208,8 +287,8 @@ func TestSubsetSyncViaTsCodes(t *testing.T) {
 	if sum.Total != 1 || sum.Results[0].TsCode != "B" {
 		t.Fatalf("expect only B synced, got %+v", sum)
 	}
-	if src.calls[0].tsCode != "B" {
-		t.Fatalf("fetch should target B, got %s", src.calls[0].tsCode)
+	if src.dailyReq[0].tsCode != "B" {
+		t.Fatalf("fetch should target B, got %s", src.dailyReq[0].tsCode)
 	}
 }
 
@@ -219,7 +298,8 @@ func TestResultRangeAndCounts(t *testing.T) {
 	}}}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
-	st.latest["510300.SH"] = "20240110"
+	st.latestDaily["510300.SH"] = "20240110"
+	st.latestAdj["510300.SH"] = "20240110"
 
 	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	res := s.Run(context.Background(), nil).Results[0]
@@ -233,10 +313,11 @@ func TestResultRangeAndCounts(t *testing.T) {
 }
 
 func TestInvalidStoredDateFailsLoudly(t *testing.T) {
-	src := &fakeQuoteSource{bars: map[string][]Bar{}}
+	src := &fakeQuoteSource{}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
-	st.latest["510300.SH"] = "garbage"
+	st.latestDaily["510300.SH"] = "garbage"
+	st.latestAdj["510300.SH"] = "garbage"
 
 	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
@@ -244,8 +325,8 @@ func TestInvalidStoredDateFailsLoudly(t *testing.T) {
 	if sum.Success != 0 {
 		t.Fatalf("expect failure, got %+v", sum)
 	}
-	if len(src.calls) != 0 {
-		t.Fatalf("expect no fetch on invalid date, got %d", len(src.calls))
+	if len(src.dailyReq) != 0 {
+		t.Fatalf("expect no fetch on invalid date, got %d", len(src.dailyReq))
 	}
 	if got := sum.Results[0].Message; got == "ok" || got == "" {
 		t.Fatalf("expect explicit error message, got %q", got)

@@ -1,4 +1,4 @@
-// Package core 编排 ETF 日线行情的增量同步。
+// Package core 编排 ETF 日线行情与复权因子的增量同步。
 // 它只依赖 QuoteSource 与 Store 两个窄接口，不感知 Tushare HTTP 或 MySQL 细节，
 // 是全仓库唯一的测试接缝（见 issue #1 Testing Decisions）。
 package core
@@ -24,6 +24,13 @@ type Bar struct {
 	Amount    float64
 }
 
+// AdjFactor 是一条原始复权因子（Adjustment Factor）。
+type AdjFactor struct {
+	TsCode    string
+	TradeDate string // YYYYMMDD
+	AdjFactor float64
+}
+
 // Instrument 是纳入同步的标的。
 type Instrument struct {
 	TsCode string
@@ -35,16 +42,22 @@ type Instrument struct {
 type QuoteSource interface {
 	// FetchDaily 拉取 [startDate, endDate]（YYYYMMDD，闭区间）内的日线行情。
 	FetchDaily(ctx context.Context, tsCode, startDate, endDate string) ([]Bar, error)
+	// FetchAdj 拉取 [startDate, endDate]（YYYYMMDD，闭区间）内的复权因子。
+	FetchAdj(ctx context.Context, tsCode, startDate, endDate string) ([]AdjFactor, error)
 }
 
 // Store 是存储（生产实现：MySQL）。
 type Store interface {
 	// ListSyncEnabled 返回全部启用同步的 Instrument。
 	ListSyncEnabled(ctx context.Context) ([]Instrument, error)
-	// LatestDailyDate 返回该标的已存储的最新交易日（YYYYMMDD）；无历史时返回 ""。
+	// LatestDailyDate 返回该标的已存储的最新日线交易日（YYYYMMDD）；无历史时返回 ""。
 	LatestDailyDate(ctx context.Context, tsCode string) (string, error)
-	// UpsertDaily 按 (ts_code, trade_date) 主键 upsert，返回影响行数。幂等。
+	// LatestAdjDate 返回该标的已存储的最新因子日期（YYYYMMDD）；无历史时返回 ""。
+	LatestAdjDate(ctx context.Context, tsCode string) (string, error)
+	// UpsertDaily 按 (ts_code, trade_date) 主键 upsert 日线，返回写入行数。幂等。
 	UpsertDaily(ctx context.Context, bars []Bar) (int, error)
+	// UpsertAdjFactors 按 (ts_code, trade_date) 主键 upsert 因子，返回写入行数。幂等。
+	UpsertAdjFactors(ctx context.Context, factors []AdjFactor) (int, error)
 }
 
 // Result 是单个标的的同步结果摘要。
@@ -130,19 +143,10 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 		return res
 	}
 
-	latest, err := s.store.LatestDailyDate(ctx, tsCode)
-	if err != nil {
-		res.Message = fmt.Sprintf("查询最新交易日失败: %v", err)
+	start, msg := s.syncStart(ctx, tsCode)
+	if msg != "" {
+		res.Message = msg
 		return res
-	}
-
-	start := s.defaultStartDate
-	if latest != "" {
-		start, err = nextDay(latest)
-		if err != nil {
-			res.Message = fmt.Sprintf("存储中的最新交易日格式非法: %q", latest)
-			return res
-		}
 	}
 	if _, err := time.Parse("20060102", start); err != nil {
 		res.Message = fmt.Sprintf("默认起始日期格式非法: %q", start)
@@ -173,10 +177,22 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 			return res
 		}
 		res.Fetched += len(bars)
-
 		n, err := s.store.UpsertDaily(ctx, bars)
 		if err != nil {
-			res.Message = fmt.Sprintf("写入存储失败: %v", err)
+			res.Message = fmt.Sprintf("写入行情失败: %v", err)
+			return res
+		}
+		res.Upserted += n
+
+		factors, err := s.source.FetchAdj(ctx, tsCode, chunkStart, chunkEnd)
+		if err != nil {
+			res.Message = fmt.Sprintf("拉取复权因子失败: %v", err)
+			return res
+		}
+		res.Fetched += len(factors)
+		n, err = s.store.UpsertAdjFactors(ctx, factors)
+		if err != nil {
+			res.Message = fmt.Sprintf("写入复权因子失败: %v", err)
 			return res
 		}
 		res.Upserted += n
@@ -191,6 +207,34 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 	res.Message = "ok"
 	res.success = true
 	return res
+}
+
+// syncStart 计算增量起点：日线与因子皆有历史时取两者较旧者的次日；
+// 任一缺失（或皆空）则从默认起始日期全量回填，确保两张表不长期错位。
+// 返回空 msg 表示正常。
+func (s *Syncer) syncStart(ctx context.Context, tsCode string) (start string, msg string) {
+	latestDaily, err := s.store.LatestDailyDate(ctx, tsCode)
+	if err != nil {
+		return "", fmt.Sprintf("查询日线最新交易日失败: %v", err)
+	}
+	latestAdj, err := s.store.LatestAdjDate(ctx, tsCode)
+	if err != nil {
+		return "", fmt.Sprintf("查询因子最新日期失败: %v", err)
+	}
+
+	if latestDaily == "" || latestAdj == "" {
+		return s.defaultStartDate, ""
+	}
+
+	older := latestDaily
+	if latestAdj < older {
+		older = latestAdj
+	}
+	start, err = nextDay(older)
+	if err != nil {
+		return "", fmt.Sprintf("存储中的最新日期格式非法: %q", older)
+	}
+	return start, ""
 }
 
 func nextDay(date string) (string, error) { return addDays(date, 1) }

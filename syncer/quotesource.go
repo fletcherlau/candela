@@ -43,3 +43,24 @@ func (s *fundDailySource) FetchDaily(ctx context.Context, tsCode, startDate, end
 	}
 	return bars, nil
 }
+
+func (s *fundDailySource) FetchAdj(ctx context.Context, tsCode, startDate, endDate string) ([]core.AdjFactor, error) {
+	items, err := market.FundAdj(s.client, &market.FundAdjParams{
+		TSCode:    tsCode,
+		StartDate: startDate,
+		EndDate:   endDate,
+	}, tushare.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	factors := make([]core.AdjFactor, 0, len(items))
+	for _, it := range items {
+		factors = append(factors, core.AdjFactor{
+			TsCode:    it.TSCode,
+			TradeDate: it.TradeDate,
+			AdjFactor: it.AdjFactor,
+		})
+	}
+	return factors, nil
+}
