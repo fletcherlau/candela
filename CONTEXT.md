@@ -22,6 +22,12 @@ syncer 的核心动作：从每个 Instrument 已存储的最新日期之后继�
 ### QuoteSource / Store（测试接缝）
 同步核心的两个窄接口：QuoteSource 是行情数据源（生产实现为 go-tushare 客户端的薄适配，限频由客户端内置），Store 是存储（生产实现为 MySQL）。同步核心只依赖这两个接口，是全仓库唯一的测试接缝——单测用内存 fake 替换二者。
 
+### Feishubot（机器人服务）
+本仓库的服务进程（`feishubot/`），飞书自建应用机器人：持飞书长连接收聊天命令（`status`/`sync`/`help`），经 syncer 的 HTTP API 读写数据，是 syncer 之上的界面层。不连 MySQL，内部无调度逻辑（ADR-0004）。
+
+### Daily Report Push（日报推送）
+feishubot 的推送动作：系统 crontab curl 触发 `POST /api/v1/push/daily-report`（X-Api-Key 鉴权），feishubot 拉取同步状态组成卡片，经飞书消息 API 下发到配置的会话（`FEISHU_PUSH_CHAT_ID`）。每日 14:45 / 18:00 各一次，调度配置在运维层 crontab，不进代码库。
+
 ## 避免使用的说法
 
 - 不说「股票」「基金」泛指——说 **Instrument**（当前同步域只覆盖 ETF）。

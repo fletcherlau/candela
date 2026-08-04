@@ -1,4 +1,4 @@
-# candela 开发/单机部署：syncer + MySQL。
+# candela 开发/单机部署：syncer + feishubot + MySQL。
 # 用法（仓库根目录）：
 #   docker compose -f deployments/compose.yaml --env-file .env up -d --build
 # 密钥经 --env-file 注入（见 .env.example），真实值不入库。
@@ -41,6 +41,25 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+
+  feishubot:
+    build:
+      context: ../feishubot
+      dockerfile: ../deployments/feishubot.Dockerfile
+    container_name: candela-feishubot
+    restart: unless-stopped
+    environment:
+      FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID is required}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET is required}
+      FEISHU_PUSH_CHAT_ID: ${FEISHU_PUSH_CHAT_ID:?FEISHU_PUSH_CHAT_ID is required}
+      # 容器内经 compose 网络访问 syncer 服务名，不用宿主机回环
+      SYNCER_API_BASE: "http://syncer:8888"
+      SYNC_API_KEY: ${SYNC_API_KEY:?SYNC_API_KEY is required}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:8889:8889"
+    depends_on:
+      - syncer
 
 volumes:
   mysql_data:
