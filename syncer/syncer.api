@@ -1,0 +1,18 @@
+syntax = "v1"
+
+info (
+	title:   "syncer"
+	desc:    "ETF 行情数据同步服务：Tushare → MySQL 增量同步"
+	author:  "fletcherlau"
+	version: "v1"
+)
+
+type PingResp {
+	Message string `json:"message"`
+}
+
+service syncer-api {
+	@handler Ping
+	get /api/v1/ping returns (PingResp)
+}
+
