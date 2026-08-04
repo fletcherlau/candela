@@ -1,0 +1,14 @@
+Name: syncer-api
+Host: 0.0.0.0
+Port: 8888
+
+# 密钥经环境变量注入（conf.UseEnv），真实值只存在于服务器 .env，不入库。
+MysqlDSN: ${MYSQL_DSN}
+Tushare:
+  Token: ${TUSHARE_TOKEN}
+  BaseURL: https://api.tushare.pro
+Sync:
+  ThrottleMs: 300
+  DefaultStartDate: "20100101"
+  ChunkDays: 370
+ApiKey: ${SYNC_API_KEY}
