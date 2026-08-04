@@ -1,2 +1,5 @@
 .env
 logs/
+# 本地一次性机器人测试脚本（含真实凭证，不入库）
+.scratch/
+wecom-aibot-test.*
