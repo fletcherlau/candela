@@ -255,6 +255,41 @@ func TestIdempotentRerun(t *testing.T) {
 	if first.Results[0].Fetched != 4 || first.Results[0].Upserted != 4 {
 		t.Fatalf("first run counts wrong: %+v", first.Results[0])
 	}
+	if first.Results[0].DailyFetched != 2 || first.Results[0].AdjFetched != 2 {
+		t.Fatalf("first run breakdown wrong: %+v", first.Results[0])
+	}
+}
+
+func TestBackfillWhenDailyMissing(t *testing.T) {
+	src := &fakeQuoteSource{}
+	st := newFakeStore()
+	st.instruments = []Instrument{{TsCode: "510300.SH"}}
+	st.latestAdj["510300.SH"] = "20240110" // 因子有历史，日线无 → 全量回填
+
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
+	s.Run(context.Background(), nil)
+
+	if got := src.dailyReq[0].start; got != "20100101" {
+		t.Fatalf("expect backfill from default start, got %s", got)
+	}
+}
+
+func TestOneSidedGarbageDateFailsLoudly(t *testing.T) {
+	src := &fakeQuoteSource{}
+	st := newFakeStore()
+	st.instruments = []Instrument{{TsCode: "510300.SH"}}
+	st.latestDaily["510300.SH"] = "20240110"
+	st.latestAdj["510300.SH"] = "garbage" // 单边脏值：不能被字符串比较静默掩盖
+
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
+	sum := s.Run(context.Background(), nil)
+
+	if sum.Success != 0 {
+		t.Fatalf("expect failure on one-sided garbage date, got %+v", sum)
+	}
+	if len(src.dailyReq) != 0 {
+		t.Fatalf("expect no fetch, got %d", len(src.dailyReq))
+	}
 }
 
 func TestSingleFailureDoesNotAbortOthers(t *testing.T) {

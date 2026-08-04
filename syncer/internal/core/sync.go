@@ -65,9 +65,14 @@ type Result struct {
 	TsCode    string `json:"tsCode"`
 	StartDate string `json:"startDate"`
 	EndDate   string `json:"endDate"`
-	Fetched   int    `json:"fetched"`
-	Upserted  int    `json:"upserted"`
-	Message   string `json:"message"`
+	// Fetched/Upserted 是日线 + 因子的合计；分项见 Daily/Adj 前缀字段。
+	Fetched       int    `json:"fetched"`
+	Upserted      int    `json:"upserted"`
+	DailyFetched  int    `json:"dailyFetched"`
+	AdjFetched    int    `json:"adjFetched"`
+	DailyUpserted int    `json:"dailyUpserted"`
+	AdjUpserted   int    `json:"adjUpserted"`
+	Message       string `json:"message"`
 
 	success bool // 供 Summary 计数，不随 JSON 暴露
 }
@@ -176,25 +181,31 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 			res.Message = fmt.Sprintf("拉取行情失败: %v", err)
 			return res
 		}
+		res.DailyFetched += len(bars)
 		res.Fetched += len(bars)
 		n, err := s.store.UpsertDaily(ctx, bars)
 		if err != nil {
 			res.Message = fmt.Sprintf("写入行情失败: %v", err)
 			return res
 		}
+		res.DailyUpserted += n
 		res.Upserted += n
 
+		// 注意顺序：日线先于因子写入。若因子拉取失败，本分片日线已落库而因子滞后，
+		// 下一轮 min 起点会由因子侧驱动回补，配合 upsert 幂等保证恢复安全。
 		factors, err := s.source.FetchAdj(ctx, tsCode, chunkStart, chunkEnd)
 		if err != nil {
 			res.Message = fmt.Sprintf("拉取复权因子失败: %v", err)
 			return res
 		}
+		res.AdjFetched += len(factors)
 		res.Fetched += len(factors)
 		n, err = s.store.UpsertAdjFactors(ctx, factors)
 		if err != nil {
 			res.Message = fmt.Sprintf("写入复权因子失败: %v", err)
 			return res
 		}
+		res.AdjUpserted += n
 		res.Upserted += n
 
 		chunkStart, err = nextDay(chunkEnd)
@@ -224,6 +235,14 @@ func (s *Syncer) syncStart(ctx context.Context, tsCode string) (start string, ms
 
 	if latestDaily == "" || latestAdj == "" {
 		return s.defaultStartDate, ""
+	}
+
+	// 两侧都校验后再比较：单边脏值不能被字符串比较静默掩盖。
+	if _, err := time.Parse("20060102", latestDaily); err != nil {
+		return "", fmt.Sprintf("存储中的日线最新交易日格式非法: %q", latestDaily)
+	}
+	if _, err := time.Parse("20060102", latestAdj); err != nil {
+		return "", fmt.Sprintf("存储中的因子最新日期格式非法: %q", latestAdj)
 	}
 
 	older := latestDaily

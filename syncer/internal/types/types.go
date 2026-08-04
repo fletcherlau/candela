@@ -18,10 +18,14 @@ type SyncResp struct {
 }
 
 type SyncResultItem struct {
-	TsCode    string `json:"tsCode"`
-	StartDate string `json:"startDate"`
-	EndDate   string `json:"endDate"`
-	Fetched   int    `json:"fetched"`
-	Upserted  int    `json:"upserted"`
-	Message   string `json:"message"`
+	TsCode        string `json:"tsCode"`
+	StartDate     string `json:"startDate"`
+	EndDate       string `json:"endDate"`
+	Fetched       int    `json:"fetched"`
+	Upserted      int    `json:"upserted"`
+	DailyFetched  int    `json:"dailyFetched"`
+	AdjFetched    int    `json:"adjFetched"`
+	DailyUpserted int    `json:"dailyUpserted"`
+	AdjUpserted   int    `json:"adjUpserted"`
+	Message       string `json:"message"`
 }
