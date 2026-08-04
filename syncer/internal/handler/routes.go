@@ -19,16 +19,24 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/api/v1/ping",
 				Handler: PingHandler(serverCtx),
 			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/api/v1/sync/etf-daily",
-				Handler: SyncEtfDailyHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/api/v1/sync/status",
-				Handler: SyncStatusHandler(serverCtx),
-			},
 		},
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.ApiKeyAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodPost,
+					Path:    "/api/v1/sync/etf-daily",
+					Handler: SyncEtfDailyHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/api/v1/sync/status",
+					Handler: SyncStatusHandler(serverCtx),
+				},
+			}...,
+		),
 	)
 }
