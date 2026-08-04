@@ -6,3 +6,22 @@ package types
 type PingResp struct {
 	Message string `json:"message"`
 }
+
+type SyncReq struct {
+	TsCodes []string `json:"tsCodes,optional"`
+}
+
+type SyncResp struct {
+	Total   int              `json:"total"`
+	Success int              `json:"success"`
+	Results []SyncResultItem `json:"results"`
+}
+
+type SyncResultItem struct {
+	TsCode    string `json:"tsCode"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Fetched   int    `json:"fetched"`
+	Upserted  int    `json:"upserted"`
+	Message   string `json:"message"`
+}

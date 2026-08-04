@@ -11,8 +11,31 @@ type PingResp {
 	Message string `json:"message"`
 }
 
+type SyncReq {
+	// TsCodes 指定同步子集；为空则同步全部启用同步的 Instrument。
+	TsCodes []string `json:"tsCodes,optional"`
+}
+
+type SyncResultItem {
+	TsCode    string `json:"tsCode"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Fetched   int    `json:"fetched"`
+	Upserted  int    `json:"upserted"`
+	Message   string `json:"message"`
+}
+
+type SyncResp {
+	Total   int              `json:"total"`
+	Success int              `json:"success"`
+	Results []SyncResultItem `json:"results"`
+}
+
 service syncer-api {
 	@handler Ping
 	get /api/v1/ping returns (PingResp)
+
+	@handler SyncEtfDaily
+	post /api/v1/sync/etf-daily (SyncReq) returns (SyncResp)
 }
 

@@ -19,6 +19,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/api/v1/ping",
 				Handler: PingHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/v1/sync/etf-daily",
+				Handler: SyncEtfDailyHandler(serverCtx),
+			},
 		},
 	)
 }

@@ -1,18 +1,18 @@
-// Code scaffolded by goctl. Safe to edit.
-// goctl 1.10.2
-
 package svc
 
 import (
 	"syncer/internal/config"
+	"syncer/internal/core"
 )
 
 type ServiceContext struct {
 	Config config.Config
+	Syncer *core.Syncer
 }
 
-func NewServiceContext(c config.Config) *ServiceContext {
+func NewServiceContext(c config.Config, syncer *core.Syncer) *ServiceContext {
 	return &ServiceContext{
 		Config: c,
+		Syncer: syncer,
 	}
 }

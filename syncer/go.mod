@@ -3,6 +3,7 @@ module syncer
 go 1.24.5
 
 require (
+	github.com/fletcherlau/go-tushare v0.0.0-20260804064525-d8bdb7cded73
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/zeromicro/go-zero v1.10.3
 )
@@ -10,6 +11,7 @@ require (
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
