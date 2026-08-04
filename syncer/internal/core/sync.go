@@ -46,10 +46,22 @@ type QuoteSource interface {
 	FetchAdj(ctx context.Context, tsCode, startDate, endDate string) ([]AdjFactor, error)
 }
 
+// InstrumentStatus 是单个标的的同步状态快照（status 接口用）。
+type InstrumentStatus struct {
+	TsCode          string `json:"tsCode"`
+	Name            string `json:"name"`
+	SyncEnabled     bool   `json:"syncEnabled"`
+	LatestTradeDate string `json:"latestTradeDate"` // 从未同步过时为 ""
+	DailyRows       int    `json:"dailyRows"`
+	AdjRows         int    `json:"adjRows"`
+}
+
 // Store 是存储（生产实现：MySQL）。
 type Store interface {
 	// ListSyncEnabled 返回全部启用同步的 Instrument。
 	ListSyncEnabled(ctx context.Context) ([]Instrument, error)
+	// Statuses 返回全部 Instrument（含已停用）的同步状态快照。
+	Statuses(ctx context.Context) ([]InstrumentStatus, error)
 	// LatestDailyDate 返回该标的已存储的最新日线交易日（YYYYMMDD）；无历史时返回 ""。
 	LatestDailyDate(ctx context.Context, tsCode string) (string, error)
 	// LatestAdjDate 返回该标的已存储的最新因子日期（YYYYMMDD）；无历史时返回 ""。

@@ -69,6 +69,10 @@ func (f *fakeStore) ListSyncEnabled(ctx context.Context) ([]Instrument, error) {
 	return f.instruments, nil
 }
 
+func (f *fakeStore) Statuses(ctx context.Context) ([]InstrumentStatus, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) LatestDailyDate(ctx context.Context, tsCode string) (string, error) {
 	return f.latestDaily[tsCode], nil
 }

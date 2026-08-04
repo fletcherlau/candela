@@ -56,6 +56,38 @@ func (s *MySQLStore) latestDate(ctx context.Context, query, tsCode string) (stri
 	return latest.String, nil
 }
 
+// Statuses 返回全部 Instrument（含已停用、从未同步）的同步状态快照。
+func (s *MySQLStore) Statuses(ctx context.Context) ([]core.InstrumentStatus, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT i.ts_code, i.name, i.sync_enabled,
+		       COALESCE(d.latest, ''), COALESCE(d.cnt, 0), COALESCE(a.cnt, 0)
+		FROM instrument i
+		LEFT JOIN (
+			SELECT ts_code, MAX(trade_date) AS latest, COUNT(*) AS cnt
+			FROM etf_daily GROUP BY ts_code
+		) d ON d.ts_code = i.ts_code
+		LEFT JOIN (
+			SELECT ts_code, COUNT(*) AS cnt
+			FROM etf_adj_factor GROUP BY ts_code
+		) a ON a.ts_code = i.ts_code
+		ORDER BY i.ts_code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []core.InstrumentStatus
+	for rows.Next() {
+		var st core.InstrumentStatus
+		if err := rows.Scan(&st.TsCode, &st.Name, &st.SyncEnabled,
+			&st.LatestTradeDate, &st.DailyRows, &st.AdjRows); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
 // UpsertDaily 按 (ts_code, trade_date) 主键 upsert 日线，重复执行幂等。返回写入行数。
 func (s *MySQLStore) UpsertDaily(ctx context.Context, bars []core.Bar) (int, error) {
 	if len(bars) == 0 {

@@ -3,8 +3,21 @@
 
 package types
 
+type InstrumentStatusItem struct {
+	TsCode          string `json:"tsCode"`
+	Name            string `json:"name"`
+	SyncEnabled     bool   `json:"syncEnabled"`
+	LatestTradeDate string `json:"latestTradeDate"`
+	DailyRows       int    `json:"dailyRows"`
+	AdjRows         int    `json:"adjRows"`
+}
+
 type PingResp struct {
 	Message string `json:"message"`
+}
+
+type StatusResp struct {
+	Instruments []InstrumentStatusItem `json:"instruments"`
 }
 
 type SyncReq struct {
