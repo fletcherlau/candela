@@ -48,10 +48,13 @@ type QuoteSource interface {
 
 // InstrumentStatus 是单个标的的同步状态快照（status 接口用）。
 type InstrumentStatus struct {
-	TsCode          string `json:"tsCode"`
-	Name            string `json:"name"`
-	SyncEnabled     bool   `json:"syncEnabled"`
-	LatestTradeDate string `json:"latestTradeDate"` // 从未同步过时为 ""
+	TsCode      string `json:"tsCode"`
+	Name        string `json:"name"`
+	SyncEnabled bool   `json:"syncEnabled"`
+	// LatestTradeDate 日线最新交易日；LatestAdjDate 因子最新日期（停牌日可能更晚）。
+	// 从未同步过时为 ""。
+	LatestTradeDate string `json:"latestTradeDate"`
+	LatestAdjDate   string `json:"latestAdjDate"`
 	DailyRows       int    `json:"dailyRows"`
 	AdjRows         int    `json:"adjRows"`
 }

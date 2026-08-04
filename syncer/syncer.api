@@ -39,10 +39,12 @@ type InstrumentStatusItem {
 	TsCode      string `json:"tsCode"`
 	Name        string `json:"name"`
 	SyncEnabled bool   `json:"syncEnabled"`
-	// LatestTradeDate 库里最新交易日（YYYYMMDD）；从未同步过时为空串。
+	// LatestTradeDate 日线最新交易日（YYYYMMDD）；从未同步过时为空串。
 	LatestTradeDate string `json:"latestTradeDate"`
-	DailyRows       int    `json:"dailyRows"`
-	AdjRows         int    `json:"adjRows"`
+	// LatestAdjDate 因子最新日期；停牌日因子补齐，可能比日线更晚。
+	LatestAdjDate string `json:"latestAdjDate"`
+	DailyRows     int    `json:"dailyRows"`
+	AdjRows       int    `json:"adjRows"`
 }
 
 type StatusResp {

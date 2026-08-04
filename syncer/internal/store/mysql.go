@@ -60,14 +60,15 @@ func (s *MySQLStore) latestDate(ctx context.Context, query, tsCode string) (stri
 func (s *MySQLStore) Statuses(ctx context.Context) ([]core.InstrumentStatus, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT i.ts_code, i.name, i.sync_enabled,
-		       COALESCE(d.latest, ''), COALESCE(d.cnt, 0), COALESCE(a.cnt, 0)
+		       COALESCE(d.latest, ''), COALESCE(a.latest, ''),
+		       COALESCE(d.cnt, 0), COALESCE(a.cnt, 0)
 		FROM instrument i
 		LEFT JOIN (
 			SELECT ts_code, MAX(trade_date) AS latest, COUNT(*) AS cnt
 			FROM etf_daily GROUP BY ts_code
 		) d ON d.ts_code = i.ts_code
 		LEFT JOIN (
-			SELECT ts_code, COUNT(*) AS cnt
+			SELECT ts_code, MAX(trade_date) AS latest, COUNT(*) AS cnt
 			FROM etf_adj_factor GROUP BY ts_code
 		) a ON a.ts_code = i.ts_code
 		ORDER BY i.ts_code`)
@@ -80,7 +81,7 @@ func (s *MySQLStore) Statuses(ctx context.Context) ([]core.InstrumentStatus, err
 	for rows.Next() {
 		var st core.InstrumentStatus
 		if err := rows.Scan(&st.TsCode, &st.Name, &st.SyncEnabled,
-			&st.LatestTradeDate, &st.DailyRows, &st.AdjRows); err != nil {
+			&st.LatestTradeDate, &st.LatestAdjDate, &st.DailyRows, &st.AdjRows); err != nil {
 			return nil, err
 		}
 		out = append(out, st)

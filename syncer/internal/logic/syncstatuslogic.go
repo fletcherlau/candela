@@ -36,6 +36,7 @@ func (l *SyncStatusLogic) SyncStatus() (resp *types.StatusResp, err error) {
 			Name:            st.Name,
 			SyncEnabled:     st.SyncEnabled,
 			LatestTradeDate: st.LatestTradeDate,
+			LatestAdjDate:   st.LatestAdjDate,
 			DailyRows:       st.DailyRows,
 			AdjRows:         st.AdjRows,
 		})

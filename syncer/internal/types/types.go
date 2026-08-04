@@ -8,6 +8,7 @@ type InstrumentStatusItem struct {
 	Name            string `json:"name"`
 	SyncEnabled     bool   `json:"syncEnabled"`
 	LatestTradeDate string `json:"latestTradeDate"`
+	LatestAdjDate   string `json:"latestAdjDate"`
 	DailyRows       int    `json:"dailyRows"`
 	AdjRows         int    `json:"adjRows"`
 }
