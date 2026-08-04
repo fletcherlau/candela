@@ -6,15 +6,19 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"time"
 
 	"syncer/internal/config"
+	"syncer/internal/core"
 	"syncer/internal/handler"
 	"syncer/internal/schema"
+	"syncer/internal/store"
 	"syncer/internal/svc"
+	"syncer/internal/tushare"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/zeromicro/go-zero/core/conf"
@@ -23,7 +27,7 @@ import (
 
 var (
 	configFile = flag.String("f", "etc/syncer-api.yaml", "the config file")
-	once       = flag.Bool("once", false, "run a one-shot sync and exit (debug/recovery channel)")
+	once       = flag.Bool("once", false, "run a one-shot sync for all sync-enabled instruments and exit")
 )
 
 func main() {
@@ -33,6 +37,9 @@ func main() {
 	conf.MustLoad(*configFile, &c, conf.UseEnv())
 	if c.MysqlDSN == "" {
 		log.Fatal("MYSQL_DSN is required: set it via environment (see .env.example)")
+	}
+	if c.Tushare.Token == "" {
+		log.Print("warn: TUSHARE_TOKEN is empty, sync will fail on upstream calls")
 	}
 
 	db, err := sql.Open("mysql", c.MysqlDSN)
@@ -50,16 +57,25 @@ func main() {
 		log.Fatalf("ensure schema: %v", err)
 	}
 
+	source := tushare.NewClient(c.Tushare.BaseURL, c.Tushare.Token)
+	throttler := tushare.NewThrottler(time.Duration(c.Sync.ThrottleMs) * time.Millisecond)
+	syncer := core.NewSyncer(source, store.NewMySQLStore(db),
+		c.Sync.ChunkDays, c.Sync.DefaultStartDate, throttler.Wait, nil)
+
 	if *once {
-		// 同步逻辑在后续 ticket 接入；本期仅打通 one-shot 入口。
-		fmt.Println("one-shot mode: schema ensured, no sync logic yet")
+		sum := syncer.Run(context.Background(), nil)
+		out, _ := json.MarshalIndent(sum, "", "  ")
+		fmt.Println(string(out))
+		if sum.Success != sum.Total {
+			log.Fatalf("one-shot sync incomplete: %d/%d succeeded", sum.Success, sum.Total)
+		}
 		return
 	}
 
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
 
-	svcCtx := svc.NewServiceContext(c)
+	svcCtx := svc.NewServiceContext(c, syncer)
 	handler.RegisterHandlers(server, svcCtx)
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
