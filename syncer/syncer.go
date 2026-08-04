@@ -31,6 +31,9 @@ func main() {
 
 	var c config.Config
 	conf.MustLoad(*configFile, &c, conf.UseEnv())
+	if c.MysqlDSN == "" {
+		log.Fatal("MYSQL_DSN is required: set it via environment (see .env.example)")
+	}
 
 	db, err := sql.Open("mysql", c.MysqlDSN)
 	if err != nil {

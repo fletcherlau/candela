@@ -5,6 +5,7 @@ package schema
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 var statements = []string{
@@ -19,6 +20,7 @@ var statements = []string{
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='同步标的'`,
 
 	// Raw Daily Bar：Tushare fund_daily 原样落库。
+	// 注意：change_amt 对应 Tushare 字段 change（MySQL 保留字，列名避开）。
 	`CREATE TABLE IF NOT EXISTS etf_daily (
 		ts_code    VARCHAR(20)   NOT NULL,
 		trade_date CHAR(8)       NOT NULL COMMENT '交易日，YYYYMMDD',
@@ -27,7 +29,7 @@ var statements = []string{
 		low        DECIMAL(12,4) NULL,
 		close      DECIMAL(12,4) NULL,
 		pre_close  DECIMAL(12,4) NULL,
-		` + "`change`" + `   DECIMAL(12,4) NULL,
+		change_amt DECIMAL(12,4) NULL,
 		pct_chg    DECIMAL(12,4) NULL,
 		vol        DECIMAL(20,4) NULL,
 		amount     DECIMAL(20,4) NULL,
@@ -45,9 +47,9 @@ var statements = []string{
 
 // Ensure 建齐所有表（CREATE TABLE IF NOT EXISTS），可重复调用。
 func Ensure(ctx context.Context, db *sql.DB) error {
-	for _, stmt := range statements {
+	for i, stmt := range statements {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return err
+			return fmt.Errorf("schema statement %d: %w", i, err)
 		}
 	}
 	return nil

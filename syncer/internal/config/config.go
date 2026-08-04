@@ -4,9 +4,9 @@ import "github.com/zeromicro/go-zero/rest"
 
 type Config struct {
 	rest.RestConf
-	// MysqlDSN 经环境变量 MYSQL_DSN 注入，例如：
+	// MysqlDSN 经环境变量 MYSQL_DSN 注入（必填，缺失时启动即报错），例如：
 	// root:pass@tcp(127.0.0.1:3306)/candela?charset=utf8mb4&parseTime=true&loc=Local
-	MysqlDSN string `json:",optional"`
+	MysqlDSN string
 	Tushare  struct {
 		// Token 经环境变量 TUSHARE_TOKEN 注入。
 		Token   string `json:",optional"`
