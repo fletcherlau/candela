@@ -32,12 +32,16 @@ func (l *SyncEtfDailyLogic) SyncEtfDaily(req *types.SyncReq) (resp *types.SyncRe
 	}
 	for _, r := range sum.Results {
 		resp.Results = append(resp.Results, types.SyncResultItem{
-			TsCode:    r.TsCode,
-			StartDate: r.StartDate,
-			EndDate:   r.EndDate,
-			Fetched:   r.Fetched,
-			Upserted:  r.Upserted,
-			Message:   r.Message,
+			TsCode:        r.TsCode,
+			StartDate:     r.StartDate,
+			EndDate:       r.EndDate,
+			Fetched:       r.Fetched,
+			Upserted:      r.Upserted,
+			DailyFetched:  r.DailyFetched,
+			AdjFetched:    r.AdjFetched,
+			DailyUpserted: r.DailyUpserted,
+			AdjUpserted:   r.AdjUpserted,
+			Message:       r.Message,
 		})
 	}
 	return resp, nil

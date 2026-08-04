@@ -3,7 +3,7 @@ module syncer
 go 1.24.5
 
 require (
-	github.com/fletcherlau/go-tushare v0.0.0-20260804064525-d8bdb7cded73
+	github.com/fletcherlau/go-tushare v0.0.0-20260804065903-c08a1854ea6c
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/zeromicro/go-zero v1.10.3
 )
