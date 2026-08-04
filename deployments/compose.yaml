@@ -1,0 +1,46 @@
+# candela 开发/单机部署：syncer + MySQL。
+# 用法（仓库根目录）：
+#   docker compose -f deployments/compose.yaml --env-file .env up -d --build
+# 密钥经 --env-file 注入（见 .env.example），真实值不入库。
+name: candela
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: candela-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: candela
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      # 命名卷 candela_mysql_data：容器重建数据不丢
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  syncer:
+    build:
+      context: ../syncer
+      dockerfile: ../deployments/syncer.Dockerfile
+    container_name: candela-syncer
+    restart: unless-stopped
+    environment:
+      # 容器内经 compose 网络访问 mysql 服务名，不用宿主机回环
+      MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/candela?charset=utf8mb4&parseTime=true&loc=Local"
+      TUSHARE_TOKEN: ${TUSHARE_TOKEN:?TUSHARE_TOKEN is required}
+      SYNC_API_KEY: ${SYNC_API_KEY:?SYNC_API_KEY is required}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:8888:8888"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
