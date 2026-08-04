@@ -24,6 +24,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/api/v1/sync/etf-daily",
 				Handler: SyncEtfDailyHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/v1/sync/status",
+				Handler: SyncStatusHandler(serverCtx),
+			},
 		},
 	)
 }

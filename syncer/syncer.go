@@ -62,7 +62,8 @@ func main() {
 		tushare.WithHTTPURL(c.Tushare.BaseURL),
 		tushare.WithMinInterval(time.Duration(c.Sync.ThrottleMs)*time.Millisecond),
 	)}
-	syncer := core.NewSyncer(source, store.NewMySQLStore(db),
+	st := store.NewMySQLStore(db)
+	syncer := core.NewSyncer(source, st,
 		c.Sync.ChunkDays, c.Sync.DefaultStartDate, nil)
 
 	if *once {
@@ -78,7 +79,7 @@ func main() {
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
 
-	svcCtx := svc.NewServiceContext(c, syncer)
+	svcCtx := svc.NewServiceContext(c, syncer, st)
 	handler.RegisterHandlers(server, svcCtx)
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)

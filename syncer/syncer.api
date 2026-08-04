@@ -35,11 +35,30 @@ type SyncResp {
 	Results []SyncResultItem `json:"results"`
 }
 
+type InstrumentStatusItem {
+	TsCode      string `json:"tsCode"`
+	Name        string `json:"name"`
+	SyncEnabled bool   `json:"syncEnabled"`
+	// LatestTradeDate 日线最新交易日（YYYYMMDD）；从未同步过时为空串。
+	LatestTradeDate string `json:"latestTradeDate"`
+	// LatestAdjDate 因子最新日期；停牌日因子补齐，可能比日线更晚。
+	LatestAdjDate string `json:"latestAdjDate"`
+	DailyRows     int    `json:"dailyRows"`
+	AdjRows       int    `json:"adjRows"`
+}
+
+type StatusResp {
+	Instruments []InstrumentStatusItem `json:"instruments"`
+}
+
 service syncer-api {
 	@handler Ping
 	get /api/v1/ping returns (PingResp)
 
 	@handler SyncEtfDaily
 	post /api/v1/sync/etf-daily (SyncReq) returns (SyncResp)
+
+	@handler SyncStatus
+	get /api/v1/sync/status returns (StatusResp)
 }
 
