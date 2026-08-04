@@ -30,7 +30,8 @@ type Instrument struct {
 	Name   string
 }
 
-// QuoteSource 是行情数据源（生产实现：Tushare 客户端）。
+// QuoteSource 是行情数据源（生产实现：go-tushare 客户端的薄适配）。
+// 限频由数据源客户端内置保证，不在本层。
 type QuoteSource interface {
 	// FetchDaily 拉取 [startDate, endDate]（YYYYMMDD，闭区间）内的日线行情。
 	FetchDaily(ctx context.Context, tsCode, startDate, endDate string) ([]Bar, error)
@@ -54,6 +55,8 @@ type Result struct {
 	Fetched   int    `json:"fetched"`
 	Upserted  int    `json:"upserted"`
 	Message   string `json:"message"`
+
+	success bool // 供 Summary 计数，不随 JSON 暴露
 }
 
 // Summary 是一次同步触发的整体结果。
@@ -71,17 +74,12 @@ type Syncer struct {
 	chunkDays        int
 	defaultStartDate string
 
-	// wait 在每次向数据源发起拉取前调用；生产接节流器，测试可观测调用次数。
-	wait func(ctx context.Context) error
 	// today 返回今天（YYYYMMDD），注入以便测试。
 	today func() string
 }
 
-// NewSyncer 构造同步核心。wait 为 nil 时不节流；today 为 nil 时用本地当天。
-func NewSyncer(source QuoteSource, store Store, chunkDays int, defaultStartDate string, wait func(context.Context) error, today func() string) *Syncer {
-	if wait == nil {
-		wait = func(context.Context) error { return nil }
-	}
+// NewSyncer 构造同步核心。today 为 nil 时用本地当天。
+func NewSyncer(source QuoteSource, store Store, chunkDays int, defaultStartDate string, today func() string) *Syncer {
 	if today == nil {
 		today = func() string { return time.Now().Format("20060102") }
 	}
@@ -90,7 +88,6 @@ func NewSyncer(source QuoteSource, store Store, chunkDays int, defaultStartDate 
 		store:            store,
 		chunkDays:        chunkDays,
 		defaultStartDate: defaultStartDate,
-		wait:             wait,
 		today:            today,
 	}
 }
@@ -106,7 +103,7 @@ func (s *Syncer) Run(ctx context.Context, tsCodes []string) Summary {
 	sum := Summary{Total: len(instruments)}
 	for _, inst := range instruments {
 		res := s.syncOne(ctx, inst.TsCode)
-		if res.Message == "ok" || res.Message == "已是最新" {
+		if res.success {
 			sum.Success++
 		}
 		sum.Results = append(sum.Results, res)
@@ -128,6 +125,10 @@ func (s *Syncer) resolveInstruments(ctx context.Context, tsCodes []string) ([]In
 func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 	res := Result{TsCode: tsCode}
 	today := s.today()
+	if _, err := time.Parse("20060102", today); err != nil {
+		res.Message = fmt.Sprintf("today 注入值格式非法: %q", today)
+		return res
+	}
 
 	latest, err := s.store.LatestDailyDate(ctx, tsCode)
 	if err != nil {
@@ -137,26 +138,35 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 
 	start := s.defaultStartDate
 	if latest != "" {
-		start = nextDay(latest)
+		start, err = nextDay(latest)
+		if err != nil {
+			res.Message = fmt.Sprintf("存储中的最新交易日格式非法: %q", latest)
+			return res
+		}
+	}
+	if _, err := time.Parse("20060102", start); err != nil {
+		res.Message = fmt.Sprintf("默认起始日期格式非法: %q", start)
+		return res
 	}
 	res.StartDate = start
 	res.EndDate = today
 
 	if start > today {
 		res.Message = "已是最新"
+		res.success = true
 		return res
 	}
 
 	for chunkStart := start; chunkStart <= today; {
-		chunkEnd := addDays(chunkStart, s.chunkDays-1)
+		chunkEnd, err := addDays(chunkStart, s.chunkDays-1)
+		if err != nil {
+			res.Message = fmt.Sprintf("分片日期计算失败: %v", err)
+			return res
+		}
 		if chunkEnd > today {
 			chunkEnd = today
 		}
 
-		if err := s.wait(ctx); err != nil {
-			res.Message = fmt.Sprintf("节流等待中断: %v", err)
-			return res
-		}
 		bars, err := s.source.FetchDaily(ctx, tsCode, chunkStart, chunkEnd)
 		if err != nil {
 			res.Message = fmt.Sprintf("拉取行情失败: %v", err)
@@ -171,19 +181,24 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 		}
 		res.Upserted += n
 
-		chunkStart = nextDay(chunkEnd)
+		chunkStart, err = nextDay(chunkEnd)
+		if err != nil {
+			res.Message = fmt.Sprintf("分片日期计算失败: %v", err)
+			return res
+		}
 	}
 
 	res.Message = "ok"
+	res.success = true
 	return res
 }
 
-func nextDay(date string) string { return addDays(date, 1) }
+func nextDay(date string) (string, error) { return addDays(date, 1) }
 
-func addDays(date string, days int) string {
+func addDays(date string, days int) (string, error) {
 	t, err := time.Parse("20060102", date)
 	if err != nil {
-		return date
+		return "", fmt.Errorf("非法日期 %q（期望 YYYYMMDD）", date)
 	}
-	return t.AddDate(0, 0, days).Format("20060102")
+	return t.AddDate(0, 0, days).Format("20060102"), nil
 }

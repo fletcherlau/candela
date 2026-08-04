@@ -83,7 +83,7 @@ func TestIncrementalStartFromLatestPlusOne(t *testing.T) {
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
 	st.latest["510300.SH"] = "20240110"
 
-	s := NewSyncer(src, st, 370, "20100101", nil, fixedToday("20240120"))
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
 
 	if len(src.calls) != 1 {
@@ -102,7 +102,7 @@ func TestFullBackfillWhenNoHistory(t *testing.T) {
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
 
-	s := NewSyncer(src, st, 370, "20100101", nil, fixedToday("20240120"))
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
 
 	if src.calls[0].start != "20100101" {
@@ -119,7 +119,7 @@ func TestChunkingSplitsLongRange(t *testing.T) {
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
 	st.latest["510300.SH"] = "20240101"
 
-	s := NewSyncer(src, st, 10, "20100101", nil, fixedToday("20240125"))
+	s := NewSyncer(src, st, 10, "20100101", fixedToday("20240125"))
 	s.Run(context.Background(), nil)
 
 	// [20240102, 20240125] 共 24 天，每片 10 天 → 3 片
@@ -144,7 +144,7 @@ func TestShortCircuitWhenUpToDate(t *testing.T) {
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
 	st.latest["510300.SH"] = "20240120"
 
-	s := NewSyncer(src, st, 370, "20100101", nil, fixedToday("20240120"))
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
 
 	if len(src.calls) != 0 {
@@ -161,7 +161,7 @@ func TestIdempotentRerun(t *testing.T) {
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
 
-	s := NewSyncer(src, st, 370, "20100101", nil, fixedToday("20240112"))
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240112"))
 	first := s.Run(context.Background(), nil)
 	rowsAfterFirst := len(st.rows)
 
@@ -186,7 +186,7 @@ func TestSingleFailureDoesNotAbortOthers(t *testing.T) {
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "BAD.SH"}, {TsCode: "510500.SH"}}
 
-	s := NewSyncer(src, st, 370, "20100101", nil, fixedToday("20240120"))
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), nil)
 
 	if sum.Total != 2 || sum.Success != 1 {
@@ -197,29 +197,12 @@ func TestSingleFailureDoesNotAbortOthers(t *testing.T) {
 	}
 }
 
-func TestThrottleBeforeEveryFetch(t *testing.T) {
-	src := &fakeQuoteSource{bars: map[string][]Bar{}}
-	st := newFakeStore()
-	st.instruments = []Instrument{{TsCode: "510300.SH"}}
-	st.latest["510300.SH"] = "20240101"
-
-	var waits int
-	wait := func(ctx context.Context) error { waits++; return nil }
-
-	s := NewSyncer(src, st, 10, "20100101", wait, fixedToday("20240125"))
-	s.Run(context.Background(), nil)
-
-	if waits != len(src.calls) || waits != 3 {
-		t.Fatalf("expect one wait per fetch (3), got waits=%d fetches=%d", waits, len(src.calls))
-	}
-}
-
 func TestSubsetSyncViaTsCodes(t *testing.T) {
 	src := &fakeQuoteSource{bars: map[string][]Bar{}}
 	st := newFakeStore()
 	st.instruments = []Instrument{{TsCode: "A"}, {TsCode: "B"}}
 
-	s := NewSyncer(src, st, 370, "20100101", nil, fixedToday("20240120"))
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	sum := s.Run(context.Background(), []string{"B"})
 
 	if sum.Total != 1 || sum.Results[0].TsCode != "B" {
@@ -238,7 +221,7 @@ func TestResultRangeAndCounts(t *testing.T) {
 	st.instruments = []Instrument{{TsCode: "510300.SH"}}
 	st.latest["510300.SH"] = "20240110"
 
-	s := NewSyncer(src, st, 370, "20100101", nil, fixedToday("20240120"))
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
 	res := s.Run(context.Background(), nil).Results[0]
 
 	if res.StartDate != "20240111" || res.EndDate != "20240120" {
@@ -246,5 +229,25 @@ func TestResultRangeAndCounts(t *testing.T) {
 	}
 	if res.Fetched != 3 || res.Upserted != 3 {
 		t.Fatalf("counts wrong: %+v", res)
+	}
+}
+
+func TestInvalidStoredDateFailsLoudly(t *testing.T) {
+	src := &fakeQuoteSource{bars: map[string][]Bar{}}
+	st := newFakeStore()
+	st.instruments = []Instrument{{TsCode: "510300.SH"}}
+	st.latest["510300.SH"] = "garbage"
+
+	s := NewSyncer(src, st, 370, "20100101", fixedToday("20240120"))
+	sum := s.Run(context.Background(), nil)
+
+	if sum.Success != 0 {
+		t.Fatalf("expect failure, got %+v", sum)
+	}
+	if len(src.calls) != 0 {
+		t.Fatalf("expect no fetch on invalid date, got %d", len(src.calls))
+	}
+	if got := sum.Results[0].Message; got == "ok" || got == "" {
+		t.Fatalf("expect explicit error message, got %q", got)
 	}
 }

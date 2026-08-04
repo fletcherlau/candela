@@ -18,8 +18,8 @@ import (
 	"syncer/internal/schema"
 	"syncer/internal/store"
 	"syncer/internal/svc"
-	"syncer/internal/tushare"
 
+	tushare "github.com/fletcherlau/go-tushare"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/rest"
@@ -57,10 +57,13 @@ func main() {
 		log.Fatalf("ensure schema: %v", err)
 	}
 
-	source := tushare.NewClient(c.Tushare.BaseURL, c.Tushare.Token)
-	throttler := tushare.NewThrottler(time.Duration(c.Sync.ThrottleMs) * time.Millisecond)
+	// 限频由 go-tushare 客户端内置：任意两次 HTTP 调用间隔不低于 ThrottleMs。
+	source := &fundDailySource{client: tushare.NewClient(c.Tushare.Token,
+		tushare.WithHTTPURL(c.Tushare.BaseURL),
+		tushare.WithMinInterval(time.Duration(c.Sync.ThrottleMs)*time.Millisecond),
+	)}
 	syncer := core.NewSyncer(source, store.NewMySQLStore(db),
-		c.Sync.ChunkDays, c.Sync.DefaultStartDate, throttler.Wait, nil)
+		c.Sync.ChunkDays, c.Sync.DefaultStartDate, nil)
 
 	if *once {
 		sum := syncer.Run(context.Background(), nil)
