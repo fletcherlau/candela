@@ -54,7 +54,12 @@ type StatusResp {
 service syncer-api {
 	@handler Ping
 	get /api/v1/ping returns (PingResp)
+}
 
+@server (
+	middleware: ApiKeyAuth
+)
+service syncer-api {
 	@handler SyncEtfDaily
 	post /api/v1/sync/etf-daily (SyncReq) returns (SyncResp)
 

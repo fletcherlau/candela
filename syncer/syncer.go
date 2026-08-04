@@ -41,6 +41,9 @@ func main() {
 	if c.Tushare.Token == "" {
 		log.Print("warn: TUSHARE_TOKEN is empty, sync will fail on upstream calls")
 	}
+	if c.ApiKey == "" {
+		log.Print("warn: SYNC_API_KEY is not set, sync endpoints are UNAUTHENTICATED (local debug only)")
+	}
 
 	db, err := sql.Open("mysql", c.MysqlDSN)
 	if err != nil {
