@@ -58,6 +58,15 @@ type SignalCardItem struct {
 	Message  string   `json:"message"`
 }
 
+// AdviceItem 是单一持仓情形下的操作建议（Signal Card 建议表的一行）；
+// TargetWeight 为 null 表示不下单或维持当前仓位不动。
+type AdviceItem struct {
+	Scenario     string   `json:"scenario"`
+	Action       string   `json:"action"`
+	TargetWeight *float64 `json:"targetWeight"`
+	Note         string   `json:"note"`
+}
+
 type SignalResp struct {
 	TradeDate string `json:"tradeDate"`
 	// SnapshotDate 盘中快照交易日（YYYYMMDD）；与 TradeDate 不一致即非交易日。
@@ -65,6 +74,8 @@ type SignalResp struct {
 	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），调用方应短路不推送。
 	TradingDay bool             `json:"tradingDay"`
 	Cards      []SignalCardItem `json:"cards"`
+	// Advice 是五情形交易建议（现金 + 各标的），由 core.ComputeAdvice 从 Cards 推导。
+	Advice []AdviceItem `json:"advice"`
 }
 
 // DiffField 单字段差值（官方日线 − 盘中快照）：Abs 绝对差，Bps 相对差（万分之一，快照为基准）。

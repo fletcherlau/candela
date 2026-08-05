@@ -23,7 +23,7 @@ syncer 的核心动作：从每个 Instrument 已存储的最新日期之后继�
 本仓库的服务进程（`syncer/`），负责把 Raw Daily Bar 与 Adjustment Factor 从 Tushare 同步到 MySQL。无状态（ADR-0001）：调度由系统 crontab 触发，服务本身不含定时逻辑；同一二进制支持 one-shot 模式（跑完即退）作为调试与兜底通道。
 
 ### Signal Card（信号卡片）
-某 Instrument 基于盘中快照算出的轮动信号视图：ER 加权动量得分 score、YZ 年化波动率 σ_YZ、分位 q、节流权重 w(q) 与跨标的名次 rank。**无状态**：每次全量重算，只呈现数值与排名，不含「换/不换」结论。新鲜度守卫（stale）标记快照过期或日线历史滞后的标的。由 `POST /api/v1/rotation/signal` 计算（副作用：Intraday Snapshot 落库），feishubot 渲染成卡片推送。
+某 Instrument 基于盘中快照算出的轮动信号视图：ER 加权动量得分 score、YZ 年化波动率 σ_YZ、分位 q、节流权重 w(q) 与跨标的名次 rank，外加五情形交易建议（现金/持有各标的 → 买入/换入/持有 + 目标仓位，`core.ComputeAdvice` 纯函数按运行手册 §3/§4 推导：安全阀、δ=0.005 差距缓冲、5pp 微调死区、513100 溢价提示）。**无状态**：每次全量重算，建议仅由当日信号推导，不感知真实持仓。新鲜度守卫（stale）标记快照过期或日线历史滞后的标的。由 `POST /api/v1/rotation/signal` 计算（副作用：Intraday Snapshot 落库），feishubot 渲染成卡片 JSON 2.0 原生表格（信号表 + 建议表）推送。
 
 ### Close Report（收盘日报）
 每日 18:00 的端到端动作：syncer `POST /api/v1/rotation/close-report` 一条链完成——① Incremental Sync（幂等，已是最新则短路）② Slippage Diff ③ 以**官方收盘价**（Raw Daily Bar 的 close）作当日第 20 点重算信号（打分口径与 Signal Card 相同，仅当日点来源不同）。feishubot `POST /api/v1/push/close-report` 渲染成卡片推送；非交易日或无盘中快照时降级为纯同步摘要，**每天照推**（不同于 14:45 信号卡片的非交易日短路）。

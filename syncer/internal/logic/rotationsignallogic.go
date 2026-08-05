@@ -26,7 +26,8 @@ func NewRotationSignalLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ro
 }
 
 // RotationSignal 计算全部启用同步标的的盘中信号卡片并落库盘中快照。
-// 薄壳：计算与落库都在 core.SignalComputer（已单测覆盖），这里只做标的解析与 JSON 适配。
+// 薄壳：计算与落库都在 core.SignalComputer（已单测覆盖），交易建议在 core.ComputeAdvice
+// （纯函数，已单测覆盖），这里只做标的解析与 JSON 适配。
 func (l *RotationSignalLogic) RotationSignal() (resp *types.SignalResp, err error) {
 	instruments, err := l.svcCtx.Store.ListSyncEnabled(l.ctx)
 	if err != nil {
@@ -48,6 +49,7 @@ func (l *RotationSignalLogic) RotationSignal() (resp *types.SignalResp, err erro
 		TradeDate:    report.TradeDate,
 		SnapshotDate: report.SnapshotDate,
 		TradingDay:   report.SnapshotDate != "" && report.SnapshotDate == report.TradeDate,
+		Advice:       toAdviceItems(core.ComputeAdvice(report.Cards)),
 	}
 	for _, card := range report.Cards {
 		resp.Cards = append(resp.Cards, toSignalCardItem(card, names[card.TsCode]))
@@ -68,6 +70,20 @@ func toSignalCardItem(card core.SignalCard, name string) types.SignalCardItem {
 		Stale:    card.Stale,
 		Message:  card.Message,
 	}
+}
+
+// toAdviceItems 把 core.AdviceItem 适配为 JSON 结构（字段一一对应）。
+func toAdviceItems(items []core.AdviceItem) []types.AdviceItem {
+	out := make([]types.AdviceItem, 0, len(items))
+	for _, it := range items {
+		out = append(out, types.AdviceItem{
+			Scenario:     it.Scenario,
+			Action:       it.Action,
+			TargetWeight: it.TargetWeight,
+			Note:         it.Note,
+		})
+	}
+	return out
 }
 
 // jsonFloat 把 NaN（历史不足）转为 nil，使 JSON 序列化为 null（encoding/json 无法编码 NaN）。

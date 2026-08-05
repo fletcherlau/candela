@@ -11,8 +11,10 @@ import (
 )
 
 // Sender 是飞书消息的发送出口：Push 主动发到会话，Reply 引用回复一条消息。
+// PushCard 发 markdown 卡片（1.0 schema）；PushCardJSON 发组装好的卡片 JSON（如 2.0 表格卡片）。
 type Sender interface {
 	PushCard(ctx context.Context, chatID, markdown string) error
+	PushCardJSON(ctx context.Context, chatID, cardJSON string) error
 	ReplyCard(ctx context.Context, messageID, markdown string) error
 }
 
@@ -27,12 +29,22 @@ func NewLarkSender(client *lark.Client) *LarkSender {
 
 // PushCard 把 markdown 卡片发到指定 chat_id（Daily Report Push 用）。
 func (s *LarkSender) PushCard(ctx context.Context, chatID, markdown string) error {
+	return s.createMessage(ctx, chatID, cardContent(markdown))
+}
+
+// PushCardJSON 把组装好的卡片 JSON 发到指定 chat_id（Signal Card 2.0 表格卡片用）。
+func (s *LarkSender) PushCardJSON(ctx context.Context, chatID, cardJSON string) error {
+	return s.createMessage(ctx, chatID, cardJSON)
+}
+
+// createMessage 发一条 interactive 卡片消息到指定 chat_id（PushCard/PushCardJSON 共用）。
+func (s *LarkSender) createMessage(ctx context.Context, chatID, content string) error {
 	req := larkim.NewCreateMessageReqBuilder().
 		ReceiveIdType("chat_id").
 		Body(larkim.NewCreateMessageReqBodyBuilder().
 			ReceiveId(chatID).
 			MsgType("interactive").
-			Content(cardContent(markdown)).
+			Content(content).
 			Build()).
 		Build()
 	resp, err := s.client.Im.V1.Message.Create(ctx, req)

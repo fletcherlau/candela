@@ -35,15 +35,29 @@ func NewServer(addr, apiKey string, pushChatIDs []string, syncer *bot.SyncerClie
 	return &http.Server{Addr: addr, Handler: mux}
 }
 
-// pushToAll 把卡片依次推送到全部配置会话（多群推送）。
+// fanout 把一条消息依次推送到全部配置会话（多群推送）。
 // 任一会话失败即返回错误；已推送成功的会话不回滚。
-func pushToAll(ctx context.Context, sender bot.Sender, chatIDs []string, md string) error {
+func fanout(ctx context.Context, chatIDs []string, send func(context.Context, string) error) error {
 	for _, id := range chatIDs {
-		if err := sender.PushCard(ctx, id, md); err != nil {
+		if err := send(ctx, id); err != nil {
 			return fmt.Errorf("推送会话 %s 失败: %v", id, err)
 		}
 	}
 	return nil
+}
+
+// pushToAll 把 markdown 卡片推送到全部配置会话。
+func pushToAll(ctx context.Context, sender bot.Sender, chatIDs []string, md string) error {
+	return fanout(ctx, chatIDs, func(ctx context.Context, id string) error {
+		return sender.PushCard(ctx, id, md)
+	})
+}
+
+// pushCardJSONToAll 把组装好的卡片 JSON（2.0 表格卡片）推送到全部配置会话。
+func pushCardJSONToAll(ctx context.Context, sender bot.Sender, chatIDs []string, cardJSON string) error {
+	return fanout(ctx, chatIDs, func(ctx context.Context, id string) error {
+		return sender.PushCardJSON(ctx, id, cardJSON)
+	})
 }
 
 // pushDailyReport 组日报卡片并推送到配置的会话，由系统 crontab curl 触发。
@@ -65,7 +79,7 @@ func pushDailyReport(w http.ResponseWriter, r *http.Request, pushChatIDs []strin
 	writeJSON(w, http.StatusOK, map[string]string{"message": "daily report pushed"})
 }
 
-// pushSignalCard 组盘中信号卡片并推送到配置的会话，由系统 crontab 14:45 curl 触发。
+// pushSignalCard 组盘中信号卡片（2.0 表格卡片 JSON）并推送到配置的会话，由系统 crontab 14:45 curl 触发。
 // 非交易日（syncer 判定快照交易日 ≠ 今天）短路不推送，仅记录日志。
 func pushSignalCard(w http.ResponseWriter, r *http.Request, pushChatIDs []string, syncer *bot.SyncerClient, sender bot.Sender) {
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
@@ -81,8 +95,8 @@ func pushSignalCard(w http.ResponseWriter, r *http.Request, pushChatIDs []string
 		writeJSON(w, http.StatusOK, map[string]any{"pushed": false, "reason": "non-trading day"})
 		return
 	}
-	md := bot.RenderSignalCard(sig, time.Now())
-	if err := pushToAll(ctx, sender, pushChatIDs, md); err != nil {
+	cardJSON := bot.BuildSignalCardJSON(sig, time.Now())
+	if err := pushCardJSONToAll(ctx, sender, pushChatIDs, cardJSON); err != nil {
 		log.Printf("feishubot: 信号卡片推送失败: %v", err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return

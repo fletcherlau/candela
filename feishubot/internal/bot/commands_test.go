@@ -38,6 +38,14 @@ func (f *fakeSender) PushCard(_ context.Context, chatID, markdown string) error 
 	return f.replyErr
 }
 
+// PushCardJSON 记录 2.0 卡片 JSON 推送（与 PushCard 共用 pushes 台账）。
+func (f *fakeSender) PushCardJSON(_ context.Context, chatID, cardJSON string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pushes = append(f.pushes, sentMsg{to: chatID, markdown: cardJSON})
+	return f.replyErr
+}
+
 func (f *fakeSender) lastReply() sentMsg {
 	f.mu.Lock()
 	defer f.mu.Unlock()
