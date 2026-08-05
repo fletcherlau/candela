@@ -73,6 +73,11 @@ type Store interface {
 	UpsertDaily(ctx context.Context, bars []Bar) (int, error)
 	// UpsertAdjFactors 按 (ts_code, trade_date) 主键 upsert 因子，返回写入行数。幂等。
 	UpsertAdjFactors(ctx context.Context, factors []AdjFactor) (int, error)
+	// RecentDaily 返回该标的最近 limit 条日线及对齐后的复权因子（按交易日升序）。
+	// 供轮动信号读取（1200 分位窗口 + 20 计算窗口的历史深度）。
+	RecentDaily(ctx context.Context, tsCode string, limit int) ([]DailyBarAdj, error)
+	// UpsertIntradaySnapshots 按 (ts_code, trade_date) 主键 upsert 盘中快照，返回写入行数。幂等。
+	UpsertIntradaySnapshots(ctx context.Context, snaps []IntradaySnapshot) (int, error)
 }
 
 // Result 是单个标的的同步结果摘要。

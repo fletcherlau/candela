@@ -54,6 +54,8 @@ type fakeStore struct {
 	latestAdj   map[string]string
 	dailyRows   map[string]Bar       // tsCode|tradeDate -> Bar，验证幂等
 	adjRows     map[string]AdjFactor // 同上
+	recentDaily map[string][]DailyBarAdj    // key: tsCode，升序，供轮动信号读取
+	snapshots   map[string]IntradaySnapshot // tsCode|tradeDate -> IntradaySnapshot，验证幂等
 }
 
 func newFakeStore() *fakeStore {
@@ -62,6 +64,8 @@ func newFakeStore() *fakeStore {
 		latestAdj:   map[string]string{},
 		dailyRows:   map[string]Bar{},
 		adjRows:     map[string]AdjFactor{},
+		recentDaily: map[string][]DailyBarAdj{},
+		snapshots:   map[string]IntradaySnapshot{},
 	}
 }
 
@@ -99,6 +103,21 @@ func (f *fakeStore) UpsertAdjFactors(ctx context.Context, factors []AdjFactor) (
 		}
 	}
 	return len(factors), nil
+}
+
+func (f *fakeStore) RecentDaily(ctx context.Context, tsCode string, limit int) ([]DailyBarAdj, error) {
+	rows := f.recentDaily[tsCode]
+	if len(rows) > limit {
+		rows = rows[len(rows)-limit:]
+	}
+	return rows, nil
+}
+
+func (f *fakeStore) UpsertIntradaySnapshots(ctx context.Context, snaps []IntradaySnapshot) (int, error) {
+	for _, s := range snaps {
+		f.snapshots[s.TsCode+"|"+s.TradeDate] = s
+	}
+	return len(snaps), nil
 }
 
 // --- 测试辅助 ---

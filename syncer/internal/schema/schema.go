@@ -43,6 +43,18 @@ var statements = []string{
 		adj_factor DECIMAL(18,6) NULL,
 		PRIMARY KEY (ts_code, trade_date)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ETF 复权因子（原始）'`,
+
+	// Intraday Snapshot：14:45 盘中快照（CONTEXT.md 术语），latest 为取数时刻最新价（非收盘）。
+	`CREATE TABLE IF NOT EXISTS intraday_snapshot (
+		ts_code    VARCHAR(20)   NOT NULL,
+		trade_date CHAR(8)       NOT NULL COMMENT '交易日，YYYYMMDD',
+		open       DECIMAL(12,4) NULL,
+		high       DECIMAL(12,4) NULL,
+		low        DECIMAL(12,4) NULL,
+		latest     DECIMAL(12,4) NULL COMMENT '取数时刻最新价（非收盘价）',
+		adj_mean   DECIMAL(18,6) NULL COMMENT '后复权四点均值 (O+H+L+Latest)/4 × 最新复权因子',
+		PRIMARY KEY (ts_code, trade_date)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='盘中快照'`,
 }
 
 // Ensure 建齐所有表（CREATE TABLE IF NOT EXISTS），可重复调用。
