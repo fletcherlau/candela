@@ -13,11 +13,17 @@ candela 是一个金融数据平台。本文件是全仓库的统一语言（ubi
 ### Adjustment Factor（复权因子）
 某 Instrument 某交易日的复权因子。来自 Tushare `fund_adj`，同样原样落库。存储于 `etf_adj_factor` 表，主键 (ts_code, trade_date)。注意：因子在停牌交易日也会补齐，因此因子表与行情表的日期**可能不对齐**，读取侧 join 时需容忍。
 
+### Intraday Snapshot（盘中快照）
+某 Instrument 某交易日的盘中（14:45）快照：实时 OHLC + 取数时刻最新价（**不是收盘价**），以及读取侧算出的后复权四点均值 (O+H+L+Latest)/4 × 最新复权因子。来自腾讯财经 qt.gtimg.cn，存储于 `intraday_snapshot` 表，主键 (ts_code, trade_date)，按主键 upsert **幂等**。
+
 ### Incremental Sync（增量同步）
 syncer 的核心动作：从每个 Instrument 已存储的最新日期之后继续拉取数据直到今天。起点 = min(日线最新日期, 因子最新日期) 的次日；任一表无历史则退化为 **Full Backfill（全量回填）**——从配置的默认起始日期拉全量。起点已覆盖今天则短路（「已是最新」）。按主键 upsert，**幂等**：重复执行不产生重复行。
 
 ### Syncer（同步服务）
 本仓库的服务进程（`syncer/`），负责把 Raw Daily Bar 与 Adjustment Factor 从 Tushare 同步到 MySQL。无状态（ADR-0001）：调度由系统 crontab 触发，服务本身不含定时逻辑；同一二进制支持 one-shot 模式（跑完即退）作为调试与兜底通道。
+
+### Signal Card（信号卡片）
+某 Instrument 基于盘中快照算出的轮动信号视图：ER 加权动量得分 score、YZ 年化波动率 σ_YZ、分位 q、节流权重 w(q) 与跨标的名次 rank。**无状态**：每次全量重算，只呈现数值与排名，不含「换/不换」结论。新鲜度守卫（stale）标记快照过期或日线历史滞后的标的。由 `POST /api/v1/rotation/signal` 计算（副作用：Intraday Snapshot 落库），feishubot 渲染成卡片推送。
 
 ### QuoteSource / Store（测试接缝）
 同步核心的两个窄接口：QuoteSource 是行情数据源（生产实现为 go-tushare 客户端的薄适配，限频由客户端内置），Store 是存储（生产实现为 MySQL）。同步核心只依赖这两个接口，是全仓库唯一的测试接缝——单测用内存 fake 替换二者。

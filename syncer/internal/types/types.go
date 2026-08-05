@@ -43,3 +43,26 @@ type SyncResultItem struct {
 	AdjUpserted   int    `json:"adjUpserted"`
 	Message       string `json:"message"`
 }
+
+// SignalCardItem 是单个标的的盘中信号卡片（Signal Card）。
+// Score/YZVol/Quantile 历史不足时为 NaN，JSON 层序列化为 null（指针 nil）。
+type SignalCardItem struct {
+	TsCode   string   `json:"tsCode"`
+	Name     string   `json:"name"`
+	Score    *float64 `json:"score"`
+	YZVol    *float64 `json:"yzVol"`
+	Quantile *float64 `json:"quantile"`
+	Weight   float64  `json:"weight"`
+	Rank     int      `json:"rank"`
+	Stale    bool     `json:"stale"`
+	Message  string   `json:"message"`
+}
+
+type SignalResp struct {
+	TradeDate string `json:"tradeDate"`
+	// SnapshotDate 盘中快照交易日（YYYYMMDD）；与 TradeDate 不一致即非交易日。
+	SnapshotDate string `json:"snapshotDate"`
+	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），调用方应短路不推送。
+	TradingDay bool             `json:"tradingDay"`
+	Cards      []SignalCardItem `json:"cards"`
+}

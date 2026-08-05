@@ -9,17 +9,19 @@ import (
 )
 
 type ServiceContext struct {
-	Config     config.Config
-	Syncer     *core.Syncer
-	Store      core.Store
-	ApiKeyAuth rest.Middleware
+	Config         config.Config
+	Syncer         *core.Syncer
+	SignalComputer *core.SignalComputer
+	Store          core.Store
+	ApiKeyAuth     rest.Middleware
 }
 
-func NewServiceContext(c config.Config, syncer *core.Syncer, store core.Store) *ServiceContext {
+func NewServiceContext(c config.Config, syncer *core.Syncer, signalComputer *core.SignalComputer, store core.Store) *ServiceContext {
 	return &ServiceContext{
-		Config:     c,
-		Syncer:     syncer,
-		Store:      store,
-		ApiKeyAuth: middleware.NewApiKeyAuthMiddleware(c.ApiKey).Handle,
+		Config:         c,
+		Syncer:         syncer,
+		SignalComputer: signalComputer,
+		Store:          store,
+		ApiKeyAuth:     middleware.NewApiKeyAuthMiddleware(c.ApiKey).Handle,
 	}
 }

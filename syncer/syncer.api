@@ -51,6 +51,27 @@ type StatusResp {
 	Instruments []InstrumentStatusItem `json:"instruments"`
 }
 
+// SignalCardItem 单标的盘中信号卡片；Score/YZVol/Quantile 历史不足时为 null。
+type SignalCardItem {
+	TsCode   string  `json:"tsCode"`
+	Name     string  `json:"name"`
+	Score    *float64 `json:"score"`
+	YZVol    *float64 `json:"yzVol"`
+	Quantile *float64 `json:"quantile"`
+	Weight   float64 `json:"weight"`
+	Rank     int     `json:"rank"`
+	Stale    bool    `json:"stale"`
+	Message  string  `json:"message"`
+}
+
+type SignalResp {
+	TradeDate    string `json:"tradeDate"`
+	SnapshotDate string `json:"snapshotDate"`
+	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），调用方应短路不推送。
+	TradingDay bool             `json:"tradingDay"`
+	Cards      []SignalCardItem `json:"cards"`
+}
+
 service syncer-api {
 	@handler Ping
 	get /api/v1/ping returns (PingResp)
@@ -65,5 +86,8 @@ service syncer-api {
 
 	@handler SyncStatus
 	get /api/v1/sync/status returns (StatusResp)
+
+	@handler RotationSignal
+	post /api/v1/rotation/signal returns (SignalResp)
 }
 

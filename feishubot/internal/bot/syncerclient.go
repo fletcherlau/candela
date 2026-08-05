@@ -11,10 +11,12 @@ import (
 	"time"
 )
 
-// statusTimeout 状态查询超时；syncTimeout 同步触发超时（全量回填可能很慢）。
+// statusTimeout 状态查询超时；syncTimeout 同步触发超时（全量回填可能很慢）；
+// signalTimeout 盘中信号计算超时（拉实时行情 + 读 1200 点日线窗口 × 4 标的）。
 const (
 	statusTimeout = 30 * time.Second
 	syncTimeout   = 15 * time.Minute
+	signalTimeout = 60 * time.Second
 )
 
 // 以下结构体的 JSON 字段名与 syncer/internal/types 保持一致。
@@ -57,6 +59,27 @@ type SyncerClient struct {
 	http    *http.Client
 }
 
+// SignalCardItem 是单个标的的盘中信号卡片；Score/YZVol/Quantile 历史不足时为 null。
+type SignalCardItem struct {
+	TsCode   string   `json:"tsCode"`
+	Name     string   `json:"name"`
+	Score    *float64 `json:"score"`
+	YZVol    *float64 `json:"yzVol"`
+	Quantile *float64 `json:"quantile"`
+	Weight   float64  `json:"weight"`
+	Rank     int      `json:"rank"`
+	Stale    bool     `json:"stale"`
+	Message  string   `json:"message"`
+}
+
+type SignalResp struct {
+	TradeDate    string `json:"tradeDate"`
+	SnapshotDate string `json:"snapshotDate"`
+	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），应短路不推送。
+	TradingDay bool             `json:"tradingDay"`
+	Cards      []SignalCardItem `json:"cards"`
+}
+
 func NewSyncerClient(baseURL, apiKey string) *SyncerClient {
 	return &SyncerClient{baseURL: baseURL, apiKey: apiKey, http: &http.Client{}}
 }
@@ -78,6 +101,17 @@ func (c *SyncerClient) SyncETFDaily(ctx context.Context) (*SyncResp, error) {
 	defer cancel()
 	var out SyncResp
 	if err := c.do(ctx, http.MethodPost, "/api/v1/sync/etf-daily", []byte(`{}`), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Signal 调 syncer POST /api/v1/rotation/signal 计算盘中信号（副作用：快照落库）。
+func (c *SyncerClient) Signal(ctx context.Context) (*SignalResp, error) {
+	ctx, cancel := context.WithTimeout(ctx, signalTimeout)
+	defer cancel()
+	var out SignalResp
+	if err := c.do(ctx, http.MethodPost, "/api/v1/rotation/signal", []byte(`{}`), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

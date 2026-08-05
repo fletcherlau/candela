@@ -60,8 +60,10 @@ type SignalCard struct {
 
 // SignalReport 是一次盘中信号计算的整体结果。
 type SignalReport struct {
-	TradeDate string       `json:"tradeDate"` // YYYYMMDD
-	Cards     []SignalCard `json:"cards"`
+	TradeDate string `json:"tradeDate"` // 今天，YYYYMMDD
+	// SnapshotDate 是盘中快照交易日（取自行情时间戳）；与 TradeDate 不一致即非交易日。无行情时为空。
+	SnapshotDate string       `json:"snapshotDate"`
+	Cards        []SignalCard `json:"cards"`
 }
 
 // SignalComputer 计算轮动信号并落库盘中快照。
@@ -110,6 +112,10 @@ func (c *SignalComputer) ComputeSignal(ctx context.Context, tsCodes []string) (S
 	byCode := make(map[string]RealtimeQuote, len(quotes))
 	for _, q := range quotes {
 		byCode[q.TsCode] = q
+	}
+	// 快照交易日取自行情时间戳；全部标的同日（个别停牌标的以各自卡片 Stale 体现）。
+	if len(quotes) > 0 {
+		report.SnapshotDate = quotes[0].TradeDate
 	}
 
 	var snaps []IntradaySnapshot
