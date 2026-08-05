@@ -64,12 +64,22 @@ type SignalCardItem {
 	Message  string  `json:"message"`
 }
 
+// AdviceItem 单一持仓情形下的操作建议；targetWeight 为 null 表示不下单或维持当前仓位不动。
+type AdviceItem {
+	Scenario     string   `json:"scenario"`
+	Action       string   `json:"action"`
+	TargetWeight *float64 `json:"targetWeight"`
+	Note         string   `json:"note"`
+}
+
 type SignalResp {
 	TradeDate    string `json:"tradeDate"`
 	SnapshotDate string `json:"snapshotDate"`
 	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），调用方应短路不推送。
 	TradingDay bool             `json:"tradingDay"`
 	Cards      []SignalCardItem `json:"cards"`
+	// Advice 五情形交易建议（现金 + 各标的），由 core.ComputeAdvice 从 cards 推导。
+	Advice     []AdviceItem     `json:"advice"`
 }
 
 // DiffField 单字段差值（官方日线 − 盘中快照）：abs 绝对差，bps 相对差（万分之一，快照为基准）。
@@ -123,4 +133,3 @@ service syncer-api {
 	@handler RotationCloseReport
 	post /api/v1/rotation/close-report returns (CloseReportResp)
 }
-
