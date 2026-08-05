@@ -33,9 +33,18 @@ func RenderSignalCard(resp *SignalResp, now time.Time) string {
 		fmt.Fprintf(&b, "**数据新鲜度告警：%s 快照过期或历史滞后，相关信号仅供参考**\n\n", strings.Join(stale, "、"))
 	}
 
-	// 按名次排序：rank >= 1 升序在前，rank 0（无法打分）垫底并保持原顺序。
-	cards := make([]SignalCardItem, len(resp.Cards))
-	copy(cards, resp.Cards)
+	// 按名次排序渲染（rank 1 粗体高亮，rank 0 垫底）。
+	writeRankedCards(&b, resp.Cards)
+
+	fmt.Fprintf(&b, "生成时间：%s", now.Format("2006-01-02 15:04:05"))
+	return b.String()
+}
+
+// writeRankedCards 按名次渲染信号卡片列表：rank >= 1 升序在前（rank 1 粗体高亮），
+// rank 0（无法打分）垫底并保持原顺序。Signal Card 与 Close Report 的收盘重算段共用。
+func writeRankedCards(b *strings.Builder, items []SignalCardItem) {
+	cards := make([]SignalCardItem, len(items))
+	copy(cards, items)
 	sort.SliceStable(cards, func(a, b int) bool {
 		ra, rb := cards[a].Rank, cards[b].Rank
 		if ra == 0 {
@@ -57,20 +66,17 @@ func RenderSignalCard(resp *SignalResp, now time.Time) string {
 			rank = fmt.Sprint(c.Rank)
 		}
 		if c.Rank == 1 {
-			fmt.Fprintf(&b, "**1｜%s**\n", head)
+			fmt.Fprintf(b, "**1｜%s**\n", head)
 		} else {
-			fmt.Fprintf(&b, "%s｜%s\n", rank, head)
+			fmt.Fprintf(b, "%s｜%s\n", rank, head)
 		}
-		fmt.Fprintf(&b, "score %s · σ_YZ %s · q %s · w(q) %.2f\n",
+		fmt.Fprintf(b, "score %s · σ_YZ %s · q %s · w(q) %.2f\n",
 			formatScore(c.Score), formatPct(c.YZVol), formatQuantile(c.Quantile), c.Weight)
 		if c.Message != "" {
-			fmt.Fprintf(&b, "%s\n", c.Message)
+			fmt.Fprintf(b, "%s\n", c.Message)
 		}
 		b.WriteString("\n")
 	}
-
-	fmt.Fprintf(&b, "生成时间：%s", now.Format("2006-01-02 15:04:05"))
-	return b.String()
 }
 
 // formatScore 渲染动量得分（4 位小数）；缺失（null，历史不足）为 -。

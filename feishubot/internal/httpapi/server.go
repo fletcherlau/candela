@@ -27,6 +27,10 @@ func NewServer(addr, apiKey, pushChatID string, syncer *bot.SyncerClient, sender
 		apiKeyAuth(apiKey, func(w http.ResponseWriter, r *http.Request) {
 			pushSignalCard(w, r, pushChatID, syncer, sender)
 		}))
+	mux.HandleFunc("POST /api/v1/push/close-report",
+		apiKeyAuth(apiKey, func(w http.ResponseWriter, r *http.Request) {
+			pushCloseReport(w, r, pushChatID, syncer, sender)
+		}))
 	return &http.Server{Addr: addr, Handler: mux}
 }
 
@@ -68,6 +72,27 @@ func pushSignalCard(w http.ResponseWriter, r *http.Request, pushChatID string, s
 	md := bot.RenderSignalCard(sig, time.Now())
 	if err := sender.PushCard(ctx, pushChatID, md); err != nil {
 		log.Printf("feishubot: 信号卡片推送失败: %v", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pushed": true})
+}
+
+// pushCloseReport 组收盘日报卡片并推送到配置的 chat_id，由系统 crontab 18:00 curl 触发。
+// 与 14:45 信号卡片不同：非交易日/无快照时降级为纯同步摘要，但每天照推，不短路。
+// syncer 端一条链内含增量同步，超时给足 5 分钟（正常为短增量，秒级完成）。
+func pushCloseReport(w http.ResponseWriter, r *http.Request, pushChatID string, syncer *bot.SyncerClient, sender bot.Sender) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	report, err := syncer.CloseReport(ctx)
+	if err != nil {
+		log.Printf("feishubot: 收盘日报拉取失败: %v", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	md := bot.RenderCloseReport(report, time.Now())
+	if err := sender.PushCard(ctx, pushChatID, md); err != nil {
+		log.Printf("feishubot: 收盘日报推送失败: %v", err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}

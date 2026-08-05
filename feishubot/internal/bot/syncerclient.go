@@ -12,11 +12,13 @@ import (
 )
 
 // statusTimeout 状态查询超时；syncTimeout 同步触发超时（全量回填可能很慢）；
-// signalTimeout 盘中信号计算超时（拉实时行情 + 读 1200 点日线窗口 × 4 标的）。
+// signalTimeout 盘中信号计算超时（拉实时行情 + 读 1200 点日线窗口 × 4 标的）；
+// closeReportTimeout 收盘日报超时（内含一次增量同步 + 收盘重算，对齐 syncTimeout）。
 const (
-	statusTimeout = 30 * time.Second
-	syncTimeout   = 15 * time.Minute
-	signalTimeout = 60 * time.Second
+	statusTimeout      = 30 * time.Second
+	syncTimeout        = 15 * time.Minute
+	signalTimeout      = 60 * time.Second
+	closeReportTimeout = 15 * time.Minute
 )
 
 // 以下结构体的 JSON 字段名与 syncer/internal/types 保持一致。
@@ -80,6 +82,36 @@ type SignalResp struct {
 	Cards      []SignalCardItem `json:"cards"`
 }
 
+// DiffField 单字段差值（官方日线 − 盘中快照）：Abs 绝对差，Bps 相对差（万分之一，快照为基准）。
+type DiffField struct {
+	Abs float64 `json:"abs"`
+	Bps float64 `json:"bps"`
+}
+
+// SlippageDiffItem 单标的滑点差值；Available=false 时各差值字段为 null，Message 记原因。
+type SlippageDiffItem struct {
+	TsCode    string     `json:"tsCode"`
+	Name      string     `json:"name"`
+	Available bool       `json:"available"`
+	Open      *DiffField `json:"open"`
+	High      *DiffField `json:"high"`
+	Low       *DiffField `json:"low"`
+	Close     *DiffField `json:"close"`
+	MeanBps   *float64   `json:"meanBps"`
+	Message   string     `json:"message"`
+}
+
+// CloseReportResp 收盘日报：同步摘要 + 滑点差值 + 官方收盘重算卡片。
+// TradingDay / HasSnapshot 任一为 false 时降级为纯同步摘要渲染。
+type CloseReportResp struct {
+	TradeDate   string             `json:"tradeDate"`
+	TradingDay  bool               `json:"tradingDay"`
+	HasSnapshot bool               `json:"hasSnapshot"`
+	Sync        SyncResp           `json:"sync"`
+	Diffs       []SlippageDiffItem `json:"diffs"`
+	Cards       []SignalCardItem   `json:"cards"`
+}
+
 func NewSyncerClient(baseURL, apiKey string) *SyncerClient {
 	return &SyncerClient{baseURL: baseURL, apiKey: apiKey, http: &http.Client{}}
 }
@@ -112,6 +144,18 @@ func (c *SyncerClient) Signal(ctx context.Context) (*SignalResp, error) {
 	defer cancel()
 	var out SignalResp
 	if err := c.do(ctx, http.MethodPost, "/api/v1/rotation/signal", []byte(`{}`), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CloseReport 调 syncer POST /api/v1/rotation/close-report：
+// 一条链完成增量同步 + 滑点差值 + 官方收盘重算（Close Report）。
+func (c *SyncerClient) CloseReport(ctx context.Context) (*CloseReportResp, error) {
+	ctx, cancel := context.WithTimeout(ctx, closeReportTimeout)
+	defer cancel()
+	var out CloseReportResp
+	if err := c.do(ctx, http.MethodPost, "/api/v1/rotation/close-report", []byte(`{}`), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -41,6 +41,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Path:    "/api/v1/rotation/signal",
 					Handler: RotationSignalHandler(serverCtx),
 				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/api/v1/rotation/close-report",
+					Handler: RotationCloseReportHandler(serverCtx),
+				},
 			}...,
 		),
 	)

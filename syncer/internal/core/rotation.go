@@ -193,42 +193,10 @@ func (c *SignalComputer) ComputeSignal(ctx context.Context, tsCodes []string) (S
 			series[i].Close *= series[i].AdjFactor
 		}
 
-		if len(series) < momentumWindow {
-			cur.Message = fmt.Sprintf("历史不足 %d 点，无法打分", momentumWindow)
-			continue
-		}
-		cur.Score = momentumScore(series)
-
-		// YZ 波动率序列：yz[i] 需要 i-20..i 共 21 个点，故 i 从 yzWindow 起。
-		if len(series) > yzWindow {
-			yz := make([]float64, 0, len(series)-yzWindow)
-			for i := yzWindow; i < len(series); i++ {
-				yz = append(yz, yzVol(series[i-yzWindow:i+1], yzWindow))
-			}
-			cur.YZVol = yz[len(yz)-1]
-			// 分位窗口含当前值本身（与 rotation7.py pct_of 一致）；
-			// 可计算值不足整个窗口时 q 缺失，权重回退 1。
-			if len(yz) >= c.quantileWindow {
-				w := yz[len(yz)-c.quantileWindow:]
-				cur.Quantile = quantileRank(w, cur.YZVol)
-				cur.Weight = throttleWeight(cur.Quantile)
-			}
-		}
+		c.scoreFromSeries(cur, series)
 	}
 
-	// 名次：Score 降序，无法打分（NaN）的卡片 Rank 保持 0。
-	order := make([]int, 0, len(report.Cards))
-	for i, card := range report.Cards {
-		if !math.IsNaN(card.Score) {
-			order = append(order, i)
-		}
-	}
-	sort.Slice(order, func(a, b int) bool {
-		return report.Cards[order[a]].Score > report.Cards[order[b]].Score
-	})
-	for rank, i := range order {
-		report.Cards[i].Rank = rank + 1
-	}
+	rankCards(report.Cards)
 
 	if len(snaps) > 0 {
 		if _, err := c.store.UpsertIntradaySnapshots(ctx, snaps); err != nil {
@@ -236,6 +204,101 @@ func (c *SignalComputer) ComputeSignal(ctx context.Context, tsCodes []string) (S
 		}
 	}
 	return report, nil
+}
+
+// ComputeCloseSignal 用官方收盘日线重算信号（Close Report 用，issue #12）：
+// 与 ComputeSignal 共用同一套打分逻辑（scoreFromSeries），唯一差别是当日第 20 点
+// 取库内官方日线（Raw Daily Bar 的 close），而非盘中快照的 Latest。
+// 无实时行情依赖，也无快照落库副作用。
+// tradeDate（YYYYMMDD）当日官方日线缺失的标的记 Message 并跳过打分（Stale=true），不中断其余标的。
+func (c *SignalComputer) ComputeCloseSignal(ctx context.Context, tsCodes []string, tradeDate string) (SignalReport, error) {
+	if _, err := time.Parse("20060102", tradeDate); err != nil {
+		return SignalReport{}, fmt.Errorf("tradeDate 格式非法: %q（期望 YYYYMMDD）", tradeDate)
+	}
+	report := SignalReport{TradeDate: tradeDate}
+	for _, code := range tsCodes {
+		card := SignalCard{
+			TsCode:   code,
+			Score:    math.NaN(),
+			YZVol:    math.NaN(),
+			Quantile: math.NaN(),
+			Weight:   1.0,
+		}
+		report.Cards = append(report.Cards, card)
+		cur := &report.Cards[len(report.Cards)-1]
+
+		hist, err := c.store.RecentDaily(ctx, code, c.quantileWindow+yzWindow)
+		if err != nil {
+			cur.Message = fmt.Sprintf("读取日线历史失败: %v", err)
+			cur.Stale = true
+			continue
+		}
+
+		// 后复权序列：每根日线乘各自对齐因子（当日官方收盘点也不例外）；
+		// 晚于 tradeDate 的行防御性剔除。
+		series := make([]DailyBarAdj, 0, len(hist))
+		for _, b := range hist {
+			if b.TradeDate > tradeDate {
+				continue
+			}
+			b.Open *= b.AdjFactor
+			b.High *= b.AdjFactor
+			b.Low *= b.AdjFactor
+			b.Close *= b.AdjFactor
+			series = append(series, b)
+		}
+		if len(series) == 0 || series[len(series)-1].TradeDate != tradeDate {
+			cur.Message = "当日官方日线缺失（未同步或停牌），无法收盘重算"
+			cur.Stale = true
+			continue
+		}
+		c.scoreFromSeries(cur, series)
+	}
+	rankCards(report.Cards)
+	return report, nil
+}
+
+// scoreFromSeries 用已后复权的序列（升序，含当日点）填充卡片的
+// Score/YZVol/Quantile/Weight；历史不足时相应字段保持 NaN 并记 Message。
+// ComputeSignal（盘中快照作当日点）与 ComputeCloseSignal（官方收盘作当日点）共用。
+func (c *SignalComputer) scoreFromSeries(cur *SignalCard, series []DailyBarAdj) {
+	if len(series) < momentumWindow {
+		cur.Message = fmt.Sprintf("历史不足 %d 点，无法打分", momentumWindow)
+		return
+	}
+	cur.Score = momentumScore(series)
+
+	// YZ 波动率序列：yz[i] 需要 i-20..i 共 21 个点，故 i 从 yzWindow 起。
+	if len(series) > yzWindow {
+		yz := make([]float64, 0, len(series)-yzWindow)
+		for i := yzWindow; i < len(series); i++ {
+			yz = append(yz, yzVol(series[i-yzWindow:i+1], yzWindow))
+		}
+		cur.YZVol = yz[len(yz)-1]
+		// 分位窗口含当前值本身（与 rotation7.py pct_of 一致）；
+		// 可计算值不足整个窗口时 q 缺失，权重回退 1。
+		if len(yz) >= c.quantileWindow {
+			w := yz[len(yz)-c.quantileWindow:]
+			cur.Quantile = quantileRank(w, cur.YZVol)
+			cur.Weight = throttleWeight(cur.Quantile)
+		}
+	}
+}
+
+// rankCards 按 Score 降序填名次（1 最高）；无法打分（NaN）的卡片 Rank 保持 0。
+func rankCards(cards []SignalCard) {
+	order := make([]int, 0, len(cards))
+	for i, card := range cards {
+		if !math.IsNaN(card.Score) {
+			order = append(order, i)
+		}
+	}
+	sort.Slice(order, func(a, b int) bool {
+		return cards[order[a]].Score > cards[order[b]].Score
+	})
+	for rank, i := range order {
+		cards[i].Rank = rank + 1
+	}
 }
 
 // momentumScore 计算 ER 加权动量（窗口 20 个点，运行手册 §2，口径同 rotation7.py）：

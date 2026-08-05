@@ -199,3 +199,43 @@ func (s *MySQLStore) UpsertIntradaySnapshots(ctx context.Context, snaps []core.I
 	}
 	return len(snaps), nil
 }
+
+// IntradaySnapshots 返回指定标的在 tradeDate（YYYYMMDD）的盘中快照（按 ts_code 升序）。
+// 无快照的标的不出现在结果中（Close Report 差值比对用）。
+func (s *MySQLStore) IntradaySnapshots(ctx context.Context, tsCodes []string, tradeDate string) ([]core.IntradaySnapshot, error) {
+	if len(tsCodes) == 0 {
+		return nil, nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`SELECT ts_code, trade_date, open, high, low, latest, adj_mean FROM intraday_snapshot WHERE trade_date = ? AND ts_code IN (`)
+	args := make([]interface{}, 0, len(tsCodes)+1)
+	args = append(args, tradeDate)
+	for i, code := range tsCodes {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteByte('?')
+		args = append(args, code)
+	}
+	sb.WriteString(`) ORDER BY ts_code`)
+
+	rows, err := s.db.QueryContext(ctx, sb.String(), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []core.IntradaySnapshot
+	for rows.Next() {
+		var snap core.IntradaySnapshot
+		var open, high, low, latest, adjMean sql.NullFloat64
+		if err := rows.Scan(&snap.TsCode, &snap.TradeDate, &open, &high, &low, &latest, &adjMean); err != nil {
+			return nil, err
+		}
+		snap.Open, snap.High, snap.Low, snap.Latest, snap.AdjMean =
+			open.Float64, high.Float64, low.Float64, latest.Float64, adjMean.Float64
+		out = append(out, snap)
+	}
+	return out, rows.Err()
+}

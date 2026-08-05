@@ -78,6 +78,9 @@ type Store interface {
 	RecentDaily(ctx context.Context, tsCode string, limit int) ([]DailyBarAdj, error)
 	// UpsertIntradaySnapshots 按 (ts_code, trade_date) 主键 upsert 盘中快照，返回写入行数。幂等。
 	UpsertIntradaySnapshots(ctx context.Context, snaps []IntradaySnapshot) (int, error)
+	// IntradaySnapshots 返回指定标的在 tradeDate（YYYYMMDD）的盘中快照（Close Report 差值比对用）。
+	// 无快照的标的不出现在结果中。
+	IntradaySnapshots(ctx context.Context, tsCodes []string, tradeDate string) ([]IntradaySnapshot, error)
 }
 
 // Result 是单个标的的同步结果摘要。

@@ -120,6 +120,16 @@ func (f *fakeStore) UpsertIntradaySnapshots(ctx context.Context, snaps []Intrada
 	return len(snaps), nil
 }
 
+func (f *fakeStore) IntradaySnapshots(ctx context.Context, tsCodes []string, tradeDate string) ([]IntradaySnapshot, error) {
+	var out []IntradaySnapshot
+	for _, code := range tsCodes {
+		if s, ok := f.snapshots[code+"|"+tradeDate]; ok {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
 // --- 测试辅助 ---
 
 func bar(tsCode, date string) Bar {

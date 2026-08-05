@@ -66,3 +66,35 @@ type SignalResp struct {
 	TradingDay bool             `json:"tradingDay"`
 	Cards      []SignalCardItem `json:"cards"`
 }
+
+// DiffField 单字段差值（官方日线 − 盘中快照）：Abs 绝对差，Bps 相对差（万分之一，快照为基准）。
+type DiffField struct {
+	Abs float64 `json:"abs"`
+	Bps float64 `json:"bps"`
+}
+
+// SlippageDiffItem 单标的滑点差值（Slippage Diff）；
+// Available=false（当日官方日线或盘中快照缺失）时各差值字段为 null，Message 记原因。
+type SlippageDiffItem struct {
+	TsCode    string     `json:"tsCode"`
+	Name      string     `json:"name"`
+	Available bool       `json:"available"`
+	Open      *DiffField `json:"open"`
+	High      *DiffField `json:"high"`
+	Low       *DiffField `json:"low"`
+	Close     *DiffField `json:"close"`
+	MeanBps   *float64   `json:"meanBps"`
+	Message   string     `json:"message"`
+}
+
+// CloseReportResp 收盘日报（Close Report）：同步摘要 + 滑点差值 + 官方收盘重算卡片。
+// TradingDay 表示同步后当日官方日线已就位；HasSnapshot 表示当日盘中快照存在；
+// 任一为 false 时调用方应降级为纯同步摘要（差值与重算无意义）。
+type CloseReportResp struct {
+	TradeDate   string             `json:"tradeDate"`
+	TradingDay  bool               `json:"tradingDay"`
+	HasSnapshot bool               `json:"hasSnapshot"`
+	Sync        SyncResp           `json:"sync"`
+	Diffs       []SlippageDiffItem `json:"diffs"`
+	Cards       []SignalCardItem   `json:"cards"`
+}
