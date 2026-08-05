@@ -58,11 +58,11 @@ func TestThrottleWeightBoundaries(t *testing.T) {
 		q    float64
 		want float64
 	}{
-		{70, 1.0},           // q ≤ 70 → 满仓
-		{85, 0.7},           // 1 − 0.6×(85−70)/30 = 0.7
-		{100, 0.4},          // 下限 40%
-		{50, 1.0},           // 折线以下恒 1
-		{math.NaN(), 1.0},   // q 缺失回退 1（同 rotation7.py）
+		{70, 1.0},         // q ≤ 70 → 满仓
+		{85, 0.7},         // 1 − 0.6×(85−70)/30 = 0.7
+		{100, 0.4},        // 下限 40%
+		{50, 1.0},         // 折线以下恒 1
+		{math.NaN(), 1.0}, // q 缺失回退 1（同 rotation7.py）
 	}
 	for _, c := range cases {
 		if got := throttleWeight(c.q); !almostEqual(got, c.want) {
@@ -199,20 +199,23 @@ func TestQuantileWithInjectedSmallWindow(t *testing.T) {
 
 func TestFreshnessGuard(t *testing.T) {
 	// A：库内最新日线 T-1 + 当日快照 → 不 stale；
-	// B：库内最新日线滞后 19 个日历日（> 4）→ stale；
-	// C：快照交易日非当日 → stale。
+	// B：库内最新日线滞后 19 个日历日（> 3）→ stale；
+	// C：快照交易日非当日 → stale；
+	// D：库内最新日线 gap 恰好 4（如周二数据停在周五的 T-2 情形）→ stale。
 	st := newFakeStore()
 	st.recentDaily["A"] = mkFlatHistory("A", 19, "20240119", 1, 1)
 	st.recentDaily["B"] = mkFlatHistory("B", 19, "20240101", 1, 1)
 	st.recentDaily["C"] = mkFlatHistory("C", 19, "20240118", 1, 1)
+	st.recentDaily["D"] = mkFlatHistory("D", 19, "20240116", 1, 1)
 	rt := &fakeRealtimeSource{quotes: map[string]RealtimeQuote{
 		"A": {TsCode: "A", TradeDate: "20240120", Open: 1, High: 1, Low: 1, Latest: 1},
 		"B": {TsCode: "B", TradeDate: "20240120", Open: 1, High: 1, Low: 1, Latest: 1},
 		"C": {TsCode: "C", TradeDate: "20240119", Open: 1, High: 1, Low: 1, Latest: 1},
+		"D": {TsCode: "D", TradeDate: "20240120", Open: 1, High: 1, Low: 1, Latest: 1},
 	}}
 
 	c := NewSignalComputer(rt, st, 5, fixedToday("20240120"))
-	report, err := c.ComputeSignal(context.Background(), []string{"A", "B", "C"})
+	report, err := c.ComputeSignal(context.Background(), []string{"A", "B", "C", "D"})
 	if err != nil {
 		t.Fatalf("ComputeSignal err: %v", err)
 	}
@@ -228,6 +231,9 @@ func TestFreshnessGuard(t *testing.T) {
 	}
 	if !stale["C"] {
 		t.Fatalf("C (快照非当日) 应 stale")
+	}
+	if !stale["D"] {
+		t.Fatalf("D (gap=4) 应 stale")
 	}
 }
 

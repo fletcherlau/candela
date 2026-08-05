@@ -80,9 +80,9 @@ func pushSignalCard(w http.ResponseWriter, r *http.Request, pushChatID string, s
 
 // pushCloseReport 组收盘日报卡片并推送到配置的 chat_id，由系统 crontab 18:00 curl 触发。
 // 与 14:45 信号卡片不同：非交易日/无快照时降级为纯同步摘要，但每天照推，不短路。
-// syncer 端一条链内含增量同步，超时给足 5 分钟（正常为短增量，秒级完成）。
+// syncer 端一条链内含增量同步，超时与 client 对齐给足 15 分钟（正常为短增量，秒级完成）。
 func pushCloseReport(w http.ResponseWriter, r *http.Request, pushChatID string, syncer *bot.SyncerClient, sender bot.Sender) {
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Minute)
 	defer cancel()
 	report, err := syncer.CloseReport(ctx)
 	if err != nil {

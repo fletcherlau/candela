@@ -31,14 +31,14 @@ syncer 的核心动作：从每个 Instrument 已存储的最新日期之后继�
 ### Slippage Diff（滑点差值）
 某 Instrument 某交易日**官方日线**与 **Intraday Snapshot** 的差值：开/高/低/收（收 = 官方 close 对快照 latest）逐字段绝对差 + 相对 bps，外加四点均值差 (O+H+L+C)/4 vs (O+H+L+Latest)/4 的 bps。**bps 以快照为基准**：bps = (官方 − 快照) / 快照 × 10⁴，正值表示官方价高于 14:45 快照（尾盘继续走高）。运行手册 §7 的监控对象（月均 > 10bps 预警）。
 
-### QuoteSource / Store（测试接缝）
-同步核心的两个窄接口：QuoteSource 是行情数据源（生产实现为 go-tushare 客户端的薄适配，限频由客户端内置），Store 是存储（生产实现为 MySQL）。同步核心只依赖这两个接口，是全仓库唯一的测试接缝——单测用内存 fake 替换二者。
+### QuoteSource / RealtimeSource / Store（测试接缝）
+同步与信号核心的窄接口：QuoteSource 是历史行情数据源（生产实现为 go-tushare 客户端的薄适配，限频由客户端内置），RealtimeSource 是盘中实时行情数据源（生产实现为腾讯财经 qt.gtimg.cn 的薄适配），Store 是存储（生产实现为 MySQL）。核心只依赖这三接口，是全仓库的测试接缝——单测用内存 fake 替换它们。
 
 ### Feishubot（机器人服务）
 本仓库的服务进程（`feishubot/`），飞书自建应用机器人：持飞书长连接收聊天命令（`status`/`sync`/`help`），经 syncer 的 HTTP API 读写数据，是 syncer 之上的界面层。不连 MySQL，内部无调度逻辑（ADR-0004）。
 
 ### Daily Report Push（日报推送）
-feishubot 的推送动作：系统 crontab curl 触发 `POST /api/v1/push/daily-report`（X-Api-Key 鉴权），feishubot 拉取同步状态组成卡片，经飞书消息 API 下发到配置的会话（`FEISHU_PUSH_CHAT_ID`）。每日 14:45 / 18:00 各一次，调度配置在运维层 crontab，不进代码库。
+feishubot 的推送动作：系统 crontab curl 触发 feishubot 推送端点（X-Api-Key 鉴权），feishubot 组成卡片，经飞书消息 API 下发到配置的会话（`FEISHU_PUSH_CHAT_ID`）。现有端点：`/api/v1/push/daily-report`（同步状态）、`/api/v1/push/signal-card`（Signal Card，14:45）、`/api/v1/push/close-report`（Close Report，18:00）。调度配置在运维层 crontab，不进代码库。
 
 ## 避免使用的说法
 

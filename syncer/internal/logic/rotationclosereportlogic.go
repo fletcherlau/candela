@@ -98,17 +98,7 @@ func (l *RotationCloseReportLogic) RotationCloseReport() (resp *types.CloseRepor
 		return nil, err
 	}
 	for _, card := range report.Cards {
-		resp.Cards = append(resp.Cards, types.SignalCardItem{
-			TsCode:   card.TsCode,
-			Name:     names[card.TsCode],
-			Score:    jsonFloat(card.Score),
-			YZVol:    jsonFloat(card.YZVol),
-			Quantile: jsonFloat(card.Quantile),
-			Weight:   card.Weight,
-			Rank:     card.Rank,
-			Stale:    card.Stale,
-			Message:  card.Message,
-		})
+		resp.Cards = append(resp.Cards, toSignalCardItem(card, names[card.TsCode]))
 	}
 	return resp, nil
 }

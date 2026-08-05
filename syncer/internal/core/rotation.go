@@ -14,7 +14,9 @@ const (
 	yzWindow         = 20  // YZ 波动率窗口
 	yzAnnualFactor   = 240 // YZ 年化系数
 	quantileDefault  = 1200
-	staleCalendarDay = 4 // 新鲜度守卫容忍的日历天数（覆盖周末与短假）
+	staleCalendarDay = 3 // 新鲜度守卫容忍的日历天数：正常周一 T-1=周五 gap 3 不误报；
+	// gap ≥ 4 即告警（能抓住周二数据停周五的 T-2 情形，见 issue #10）。
+	// 代价：≥3 天长假后首个交易日会误报一次——偏安全方向，可人工忽略。
 )
 
 // DailyBarAdj 是读取侧的日线视图：Raw Daily Bar 的 OHLC 加上对齐后的 Adjustment Factor。

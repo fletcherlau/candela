@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 
+	"syncer/internal/core"
 	"syncer/internal/svc"
 	"syncer/internal/types"
 
@@ -49,19 +50,24 @@ func (l *RotationSignalLogic) RotationSignal() (resp *types.SignalResp, err erro
 		TradingDay:   report.SnapshotDate != "" && report.SnapshotDate == report.TradeDate,
 	}
 	for _, card := range report.Cards {
-		resp.Cards = append(resp.Cards, types.SignalCardItem{
-			TsCode:   card.TsCode,
-			Name:     names[card.TsCode],
-			Score:    jsonFloat(card.Score),
-			YZVol:    jsonFloat(card.YZVol),
-			Quantile: jsonFloat(card.Quantile),
-			Weight:   card.Weight,
-			Rank:     card.Rank,
-			Stale:    card.Stale,
-			Message:  card.Message,
-		})
+		resp.Cards = append(resp.Cards, toSignalCardItem(card, names[card.TsCode]))
 	}
 	return resp, nil
+}
+
+// toSignalCardItem 把 core.SignalCard 适配为 JSON 结构（两个端点共用）。
+func toSignalCardItem(card core.SignalCard, name string) types.SignalCardItem {
+	return types.SignalCardItem{
+		TsCode:   card.TsCode,
+		Name:     name,
+		Score:    jsonFloat(card.Score),
+		YZVol:    jsonFloat(card.YZVol),
+		Quantile: jsonFloat(card.Quantile),
+		Weight:   card.Weight,
+		Rank:     card.Rank,
+		Stale:    card.Stale,
+		Message:  card.Message,
+	}
 }
 
 // jsonFloat 把 NaN（历史不足）转为 nil，使 JSON 序列化为 null（encoding/json 无法编码 NaN）。
