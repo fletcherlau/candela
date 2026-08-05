@@ -68,6 +68,8 @@ func main() {
 	st := store.NewMySQLStore(db)
 	syncer := core.NewSyncer(source, st,
 		c.Sync.ChunkDays, c.Sync.DefaultStartDate, nil)
+	// 盘中信号：gtimg 实时行情 + 库内日线，分位窗口与 today 用默认值。
+	signalComputer := core.NewSignalComputer(newGtimgSource(""), st, 0, nil)
 
 	if *once {
 		sum := syncer.Run(context.Background(), nil)
@@ -82,7 +84,7 @@ func main() {
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
 
-	svcCtx := svc.NewServiceContext(c, syncer, st)
+	svcCtx := svc.NewServiceContext(c, syncer, signalComputer, st)
 	handler.RegisterHandlers(server, svcCtx)
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)

@@ -51,6 +51,57 @@ type StatusResp {
 	Instruments []InstrumentStatusItem `json:"instruments"`
 }
 
+// SignalCardItem 单标的盘中信号卡片；Score/YZVol/Quantile 历史不足时为 null。
+type SignalCardItem {
+	TsCode   string  `json:"tsCode"`
+	Name     string  `json:"name"`
+	Score    *float64 `json:"score"`
+	YZVol    *float64 `json:"yzVol"`
+	Quantile *float64 `json:"quantile"`
+	Weight   float64 `json:"weight"`
+	Rank     int     `json:"rank"`
+	Stale    bool    `json:"stale"`
+	Message  string  `json:"message"`
+}
+
+type SignalResp {
+	TradeDate    string `json:"tradeDate"`
+	SnapshotDate string `json:"snapshotDate"`
+	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），调用方应短路不推送。
+	TradingDay bool             `json:"tradingDay"`
+	Cards      []SignalCardItem `json:"cards"`
+}
+
+// DiffField 单字段差值（官方日线 − 盘中快照）：abs 绝对差，bps 相对差（万分之一，快照为基准）。
+type DiffField {
+	Abs float64 `json:"abs"`
+	Bps float64 `json:"bps"`
+}
+
+// SlippageDiffItem 单标的滑点差值；available=false 时各差值字段为 null，message 记原因。
+type SlippageDiffItem {
+	TsCode    string     `json:"tsCode"`
+	Name      string     `json:"name"`
+	Available bool       `json:"available"`
+	Open      *DiffField `json:"open"`
+	High      *DiffField `json:"high"`
+	Low       *DiffField `json:"low"`
+	Close     *DiffField `json:"close"`
+	MeanBps   *float64   `json:"meanBps"`
+	Message   string     `json:"message"`
+}
+
+// CloseReportResp 收盘日报：同步摘要 + 滑点差值 + 官方收盘重算卡片。
+// tradingDay / hasSnapshot 任一为 false 时调用方降级为纯同步摘要。
+type CloseReportResp {
+	TradeDate   string             `json:"tradeDate"`
+	TradingDay  bool               `json:"tradingDay"`
+	HasSnapshot bool               `json:"hasSnapshot"`
+	Sync        SyncResp           `json:"sync"`
+	Diffs       []SlippageDiffItem `json:"diffs"`
+	Cards       []SignalCardItem   `json:"cards"`
+}
+
 service syncer-api {
 	@handler Ping
 	get /api/v1/ping returns (PingResp)
@@ -65,5 +116,11 @@ service syncer-api {
 
 	@handler SyncStatus
 	get /api/v1/sync/status returns (StatusResp)
+
+	@handler RotationSignal
+	post /api/v1/rotation/signal returns (SignalResp)
+
+	@handler RotationCloseReport
+	post /api/v1/rotation/close-report returns (CloseReportResp)
 }
 
