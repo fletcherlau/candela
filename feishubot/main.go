@@ -21,7 +21,7 @@ import (
 
 func main() {
 	c := config.Load()
-	if c.FeishuAppID == "" || c.FeishuAppSecret == "" || c.FeishuPushChatID == "" {
+	if c.FeishuAppID == "" || c.FeishuAppSecret == "" || len(c.FeishuPushChatIDs) == 0 {
 		log.Fatal("FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_PUSH_CHAT_ID are required: set them via environment (see .env.example)")
 	}
 	if c.SyncAPIKey == "" {
@@ -43,7 +43,7 @@ func main() {
 		}
 	}()
 
-	server := httpapi.NewServer(c.BotListenAddr, c.SyncAPIKey, c.FeishuPushChatID, syncerClient, sender)
+	server := httpapi.NewServer(c.BotListenAddr, c.SyncAPIKey, c.FeishuPushChatIDs, syncerClient, sender)
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
