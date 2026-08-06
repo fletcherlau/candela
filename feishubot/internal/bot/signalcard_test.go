@@ -279,3 +279,52 @@ func TestBuildSignalCardJSONNil(t *testing.T) {
 		t.Errorf("nil SignalResp 应渲染 未返回结果: %v", elements)
 	}
 }
+
+// --- 口径行（basisLine） ---
+
+func TestBasisLine(t *testing.T) {
+	realtime := signalFixture() // TradingDay=true，SnapshotDate=20260805
+	realtime.Basis = "realtime"
+	closeBasis := signalFixture()
+	closeBasis.TradeDate = "20260808"
+	closeBasis.SnapshotDate = "20260807"
+	closeBasis.TradingDay = false
+	closeBasis.Basis = "close"
+	legacy := signalFixture() // Basis 空串（旧版 syncer）按 realtime 处理
+
+	cases := []struct {
+		name string
+		resp *SignalResp
+		now  time.Time
+		want string
+	}{
+		{"盘中实时", realtime, time.Date(2026, 8, 5, 14, 45, 0, 0, beijingTZ), "口径：盘中实时"},
+		{"15点整已收盘", realtime, time.Date(2026, 8, 5, 15, 0, 0, 0, beijingTZ), "口径：已收盘（实时接口，最新价=收盘）"},
+		{"盘后已收盘", realtime, time.Date(2026, 8, 5, 20, 30, 0, 0, beijingTZ), "口径：已收盘（实时接口，最新价=收盘）"},
+		{"非交易日收盘回退", closeBasis, time.Date(2026, 8, 8, 12, 0, 0, 0, beijingTZ), "口径：非交易日，最近交易日 2026-08-07 收盘数据"},
+		{"旧版无basis字段盘中", legacy, time.Date(2026, 8, 5, 10, 0, 0, 0, beijingTZ), "口径：盘中实时"},
+	}
+	for _, c := range cases {
+		if got := basisLine(c.resp, c.now); got != c.want {
+			t.Errorf("%s: basisLine = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestBuildSignalCardJSONCloseBasis(t *testing.T) {
+	// 收盘回退口径：数据时间括号注为官方收盘，口径行点名最近交易日。
+	resp := signalFixture()
+	resp.TradeDate = "20260808"
+	resp.SnapshotDate = "20260807"
+	resp.TradingDay = false
+	resp.Basis = "close"
+	_, elements := parseSignalCard(t, BuildSignalCardJSON(resp, time.Date(2026, 8, 8, 12, 0, 0, 0, beijingTZ)))
+
+	texts := markdownTexts(elements)
+	if !anyTextContains(texts, "口径：非交易日，最近交易日 2026-08-07 收盘数据") {
+		t.Errorf("缺收盘回退口径行: %v", texts)
+	}
+	if !anyTextContains(texts, "数据时间：2026-08-07（官方收盘）") {
+		t.Errorf("数据时间应注明官方收盘: %v", texts)
+	}
+}

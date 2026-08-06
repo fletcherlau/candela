@@ -19,6 +19,13 @@ const (
 	// 代价：≥3 天长假后首个交易日会误报一次——偏安全方向，可人工忽略。
 )
 
+// 信号口径（Basis）：realtime = 当日第 20 点取盘中实时快照（Latest 作收盘）；
+// close = 非交易日回退，当日点取最近交易日的官方收盘日线（ComputeCloseSignal）。
+const (
+	BasisRealtime = "realtime"
+	BasisClose    = "close"
+)
+
 // DailyBarAdj 是读取侧的日线视图：Raw Daily Bar 的 OHLC 加上对齐后的 Adjustment Factor。
 // 因子取 trade_date <= 当日的最近一条（两表日期可能不对齐，见 CONTEXT.md）。
 type DailyBarAdj struct {
@@ -64,8 +71,10 @@ type SignalCard struct {
 type SignalReport struct {
 	TradeDate string `json:"tradeDate"` // 今天，YYYYMMDD
 	// SnapshotDate 是盘中快照交易日（取自行情时间戳）；与 TradeDate 不一致即非交易日。无行情时为空。
-	SnapshotDate string       `json:"snapshotDate"`
-	Cards        []SignalCard `json:"cards"`
+	SnapshotDate string `json:"snapshotDate"`
+	// Basis 标定卡片口径：BasisRealtime（盘中实时）或 BasisClose（非交易日官方收盘回退）。
+	Basis string       `json:"basis"`
+	Cards []SignalCard `json:"cards"`
 }
 
 // SignalComputer 计算轮动信号并落库盘中快照。
@@ -91,18 +100,24 @@ func NewSignalComputer(realtime RealtimeSource, store Store, quantileWindow int,
 	return &SignalComputer{realtime: realtime, store: store, quantileWindow: quantileWindow, today: today}
 }
 
-// ComputeSignal 计算各标的的信号卡片并按主键 upsert 盘中快照（幂等）。
+// ComputeSignal 计算各标的的信号卡片并按主键 upsert 盘中快照（幂等，cron 14:45 口径）。
 // 单个标的数据缺失/历史不足不中断其余标的，信息记入该卡片的 Message。
 //
 // 新鲜度守卫（启发式，无交易日历，见 issue #10 约定）：
 // stale = 快照交易日 ≠ 今天，或 今天 − 库内最新日线交易日 > 4 个日历日。
 // 4 天覆盖周末与短假；长假会偏向误报警告（宁可多报）。
 func (c *SignalComputer) ComputeSignal(ctx context.Context, tsCodes []string) (SignalReport, error) {
+	return c.computeSignal(ctx, tsCodes, true)
+}
+
+// computeSignal 是 ComputeSignal 的实现体；persist=false 时只读计算、不落盘中快照
+// （signal 聊天命令等交互查询用，不污染 intraday_snapshot）。
+func (c *SignalComputer) computeSignal(ctx context.Context, tsCodes []string, persist bool) (SignalReport, error) {
 	today := c.today()
 	if _, err := time.Parse("20060102", today); err != nil {
 		return SignalReport{}, fmt.Errorf("today 注入值格式非法: %q", today)
 	}
-	report := SignalReport{TradeDate: today}
+	report := SignalReport{TradeDate: today, Basis: BasisRealtime}
 	if len(tsCodes) == 0 {
 		return report, nil
 	}
@@ -200,12 +215,35 @@ func (c *SignalComputer) ComputeSignal(ctx context.Context, tsCodes []string) (S
 
 	rankCards(report.Cards)
 
-	if len(snaps) > 0 {
+	if persist && len(snaps) > 0 {
 		if _, err := c.store.UpsertIntradaySnapshots(ctx, snaps); err != nil {
 			return SignalReport{}, fmt.Errorf("写入盘中快照失败: %v", err)
 		}
 	}
 	return report, nil
+}
+
+// ComputeQuerySignal 是交互式查询（signal 聊天命令）与 cron 推送共用的信号入口：
+// persist 控制快照落库（命令恒为 false，cron 恒为 true）。
+// 先按盘中实时口径计算；快照交易日 ≠ 今天（非交易日）时整体回退为
+// ComputeCloseSignal(SnapshotDate)——最近交易日的官方收盘日线作当日点，Basis 标为 close。
+// 日期语义不变：TradeDate 恒为今天，SnapshotDate 恒为行情最近交易日。
+func (c *SignalComputer) ComputeQuerySignal(ctx context.Context, tsCodes []string, persist bool) (SignalReport, error) {
+	report, err := c.computeSignal(ctx, tsCodes, persist)
+	if err != nil {
+		return SignalReport{}, err
+	}
+	if report.SnapshotDate == "" || report.SnapshotDate == report.TradeDate {
+		return report, nil
+	}
+	closeReport, err := c.ComputeCloseSignal(ctx, tsCodes, report.SnapshotDate)
+	if err != nil {
+		return SignalReport{}, err
+	}
+	// 保留实时报告的日期语义（TradeDate=今天，SnapshotDate=最近交易日）。
+	closeReport.TradeDate = report.TradeDate
+	closeReport.SnapshotDate = report.SnapshotDate
+	return closeReport, nil
 }
 
 // ComputeCloseSignal 用官方收盘日线重算信号（Close Report 用，issue #12）：
@@ -217,7 +255,7 @@ func (c *SignalComputer) ComputeCloseSignal(ctx context.Context, tsCodes []strin
 	if _, err := time.Parse("20060102", tradeDate); err != nil {
 		return SignalReport{}, fmt.Errorf("tradeDate 格式非法: %q（期望 YYYYMMDD）", tradeDate)
 	}
-	report := SignalReport{TradeDate: tradeDate}
+	report := SignalReport{TradeDate: tradeDate, Basis: BasisClose}
 	for _, code := range tsCodes {
 		card := SignalCard{
 			TsCode:   code,

@@ -31,6 +31,14 @@ func (f *fakeSender) ReplyCard(_ context.Context, messageID, markdown string) er
 	return f.replyErr
 }
 
+// ReplyCardJSON 记录 2.0 卡片 JSON 回复（与 ReplyCard 共用 replies 台账）。
+func (f *fakeSender) ReplyCardJSON(_ context.Context, messageID, cardJSON string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replies = append(f.replies, sentMsg{to: messageID, markdown: cardJSON})
+	return f.replyErr
+}
+
 func (f *fakeSender) PushCard(_ context.Context, chatID, markdown string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -70,6 +78,22 @@ func newFakeSyncer(t *testing.T, status *StatusResp, syncHandler http.HandlerFun
 	return srv
 }
 
+// newSignalSyncer 起假 syncer：仅 signal 端点，返回固定响应并把请求 query 记入 gotQuery
+// （断言 signal 命令恒为 persist=false）。
+func newSignalSyncer(t *testing.T, resp *SignalResp, gotQuery *string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/rotation/signal" {
+			http.NotFound(w, r)
+			return
+		}
+		*gotQuery = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 var sampleStatus = &StatusResp{Instruments: []InstrumentStatusItem{
 	{
 		TsCode:          "510300.SH",
@@ -84,16 +108,20 @@ var sampleStatus = &StatusResp{Instruments: []InstrumentStatusItem{
 
 func TestParseCommand(t *testing.T) {
 	cases := map[string]string{
-		"help":                "help",
-		"帮助":                  "help",
-		"随便说什么":             "help",
-		"status":              "status",
-		"  Status  ":          "status",
-		"状态":                  "status",
-		"sync":                "sync",
-		"同步":                  "sync",
-		"@_user_1 status":     "status", // 群聊 @ 机器人后接命令
+		"help":                 "help",
+		"帮助":                   "help",
+		"随便说什么":                "help",
+		"status":               "status",
+		"  Status  ":           "status",
+		"状态":                   "status",
+		"signal":               "signal",
+		"信号":                   "signal",
+		"买什么":                  "signal",
+		"sync":                 "sync",
+		"同步":                   "sync",
+		"@_user_1 status":      "status", // 群聊 @ 机器人后接命令
 		"@_user_1 @_user_2 同步": "sync",
+		"@_user_1 signal":      "signal",
 	}
 	for in, want := range cases {
 		if got := parseCommand(in); got != want {
@@ -217,5 +245,104 @@ func TestFinishSyncSyncerUnreachable(t *testing.T) {
 	}
 	if !strings.Contains(sender.lastReply().markdown, "同步失败") {
 		t.Errorf("expected 同步失败 reply, got:\n%s", sender.lastReply().markdown)
+	}
+}
+
+// --- signal 命令 ---
+
+func TestSignalCommandRealtimeBasis(t *testing.T) {
+	// 交易日盘中：回复 2.0 表格卡片，口径行为「盘中实时」，请求恒 persist=false。
+	var query string
+	resp := signalFixture() // TradingDay=true
+	resp.Basis = "realtime"
+	srv := newSignalSyncer(t, resp, &query)
+	sender := &fakeSender{}
+	h := NewCommandHandler(NewSyncerClient(srv.URL, ""), sender)
+	h.now = func() time.Time { return time.Date(2026, 8, 5, 14, 45, 0, 0, beijingTZ) }
+
+	h.HandleText(context.Background(), "om_s1", "signal")
+
+	if len(sender.replies) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(sender.replies))
+	}
+	if query != "persist=false" {
+		t.Errorf("signal 命令必须 persist=false（不落快照），实际 query = %q", query)
+	}
+	got := sender.lastReply()
+	if got.to != "om_s1" {
+		t.Errorf("reply target = %q, want om_s1", got.to)
+	}
+	for _, want := range []string{`"schema":"2.0"`, `"tag":"table"`, "口径：盘中实时", "数据时间：2026-08-05（盘中快照）"} {
+		if !strings.Contains(got.markdown, want) {
+			t.Errorf("signal card missing %q:\n%s", want, got.markdown)
+		}
+	}
+}
+
+func TestSignalCommandRealtimeAfterClose(t *testing.T) {
+	// 交易日北京时间 15:00 后：实时接口最新价已是收盘价，口径行为「已收盘」。
+	var query string
+	resp := signalFixture()
+	resp.Basis = "realtime"
+	srv := newSignalSyncer(t, resp, &query)
+	sender := &fakeSender{}
+	h := NewCommandHandler(NewSyncerClient(srv.URL, ""), sender)
+	h.now = func() time.Time { return time.Date(2026, 8, 5, 15, 30, 0, 0, beijingTZ) }
+
+	h.HandleText(context.Background(), "om_s2", "信号")
+
+	if len(sender.replies) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(sender.replies))
+	}
+	if !strings.Contains(sender.lastReply().markdown, "口径：已收盘（实时接口，最新价=收盘）") {
+		t.Errorf("15:00 后应为已收盘口径:\n%s", sender.lastReply().markdown)
+	}
+	if query != "persist=false" {
+		t.Errorf("signal 命令必须 persist=false，实际 query = %q", query)
+	}
+}
+
+func TestSignalCommandCloseBasisNonTradingDay(t *testing.T) {
+	// 非交易日不短路：syncer 回退收盘口径（basis=close），命令照常回复卡片。
+	var query string
+	resp := signalFixture()
+	resp.TradeDate = "20260808"
+	resp.SnapshotDate = "20260807"
+	resp.TradingDay = false
+	resp.Basis = "close"
+	srv := newSignalSyncer(t, resp, &query)
+	sender := &fakeSender{}
+	h := NewCommandHandler(NewSyncerClient(srv.URL, ""), sender)
+	h.now = func() time.Time { return time.Date(2026, 8, 8, 12, 0, 0, 0, beijingTZ) }
+
+	h.HandleText(context.Background(), "om_s3", "买什么")
+
+	if len(sender.replies) != 1 {
+		t.Fatalf("非交易日不应短路，expected 1 reply, got %d", len(sender.replies))
+	}
+	got := sender.lastReply().markdown
+	for _, want := range []string{"口径：非交易日，最近交易日 2026-08-07 收盘数据", "数据时间：2026-08-07（官方收盘）"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("close 口径卡片 missing %q:\n%s", want, got)
+		}
+	}
+	if query != "persist=false" {
+		t.Errorf("signal 命令必须 persist=false，实际 query = %q", query)
+	}
+}
+
+func TestSignalCommandSyncerUnreachable(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	srv.Close() // 立即关闭，模拟不可达
+	sender := &fakeSender{}
+	h := NewCommandHandler(NewSyncerClient(srv.URL, ""), sender)
+
+	h.HandleText(context.Background(), "om_s4", "signal")
+
+	if len(sender.replies) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(sender.replies))
+	}
+	if !strings.Contains(sender.lastReply().markdown, "信号查询失败") {
+		t.Errorf("expected 信号查询失败 reply, got:\n%s", sender.lastReply().markdown)
 	}
 }

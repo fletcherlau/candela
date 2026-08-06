@@ -72,8 +72,11 @@ type SignalResp struct {
 	// SnapshotDate 盘中快照交易日（YYYYMMDD）；与 TradeDate 不一致即非交易日。
 	SnapshotDate string `json:"snapshotDate"`
 	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），调用方应短路不推送。
-	TradingDay bool             `json:"tradingDay"`
-	Cards      []SignalCardItem `json:"cards"`
+	TradingDay bool `json:"tradingDay"`
+	// Basis 标定信号口径：realtime = 盘中实时；
+	// close = 非交易日回退，卡片由最近交易日（SnapshotDate）官方收盘日线重算。
+	Basis string           `json:"basis"`
+	Cards []SignalCardItem `json:"cards"`
 	// Advice 是五情形交易建议（现金 + 各标的），由 core.ComputeAdvice 从 Cards 推导。
 	Advice []AdviceItem `json:"advice"`
 }
