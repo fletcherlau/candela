@@ -301,3 +301,87 @@ func TestSnapshotUpsertIdempotent(t *testing.T) {
 		t.Fatalf("同主键应覆盖为新值, Latest = %v, want 2", got)
 	}
 }
+
+// --- ComputeQuerySignal：persist 开关与非交易日收盘回退 ---
+
+func TestComputeQuerySignalPersistFlag(t *testing.T) {
+	// 交易日实时口径：persist=false 不落快照（signal 聊天命令），persist=true 落快照（cron 默认）。
+	st := newFakeStore()
+	st.recentDaily["510880.SH"] = mkFlatHistory("510880.SH", 19, "20240119", 1, 1)
+	rt := &fakeRealtimeSource{quotes: map[string]RealtimeQuote{
+		"510880.SH": {TsCode: "510880.SH", TradeDate: "20240120", Open: 1, High: 1, Low: 1, Latest: 1},
+	}}
+	c := NewSignalComputer(rt, st, 5, fixedToday("20240120"))
+
+	report, err := c.ComputeQuerySignal(context.Background(), []string{"510880.SH"}, false)
+	if err != nil {
+		t.Fatalf("ComputeQuerySignal err: %v", err)
+	}
+	if report.Basis != BasisRealtime {
+		t.Fatalf("交易日 Basis = %q, want %q", report.Basis, BasisRealtime)
+	}
+	if len(st.snapshots) != 0 {
+		t.Fatalf("persist=false 不应落库快照: %v", st.snapshots)
+	}
+
+	if _, err := c.ComputeQuerySignal(context.Background(), []string{"510880.SH"}, true); err != nil {
+		t.Fatalf("ComputeQuerySignal(persist=true) err: %v", err)
+	}
+	if len(st.snapshots) != 1 {
+		t.Fatalf("persist=true 应落库快照: %v", st.snapshots)
+	}
+}
+
+func TestComputeQuerySignalNonTradingDayFallsBackToClose(t *testing.T) {
+	// 非交易日：今天 20240121，gtimg 行情停在最近交易日 20240120。
+	// 20 根严格单调日线（L_j = 0.01j）止于 20240120 → 官方收盘口径 score = 0.19；
+	// 盘中快照 Latest 故意离谱（100），若错用实时口径得分必不同。
+	st := newFakeStore()
+	hist := mkFlatHistory("510880.SH", 20, "20240120", 0, 1)
+	for i := range hist {
+		p := math.Exp(0.01 * float64(i))
+		hist[i].Open, hist[i].High, hist[i].Low, hist[i].Close = p, p, p, p
+	}
+	st.recentDaily["510880.SH"] = hist
+	rt := &fakeRealtimeSource{quotes: map[string]RealtimeQuote{
+		"510880.SH": {TsCode: "510880.SH", TradeDate: "20240120", Open: 100, High: 100, Low: 100, Latest: 100},
+	}}
+	c := NewSignalComputer(rt, st, 5, fixedToday("20240121"))
+
+	report, err := c.ComputeQuerySignal(context.Background(), []string{"510880.SH"}, false)
+	if err != nil {
+		t.Fatalf("ComputeQuerySignal err: %v", err)
+	}
+	if report.Basis != BasisClose {
+		t.Fatalf("非交易日 Basis = %q, want %q", report.Basis, BasisClose)
+	}
+	// 日期语义不变：TradeDate=今天，SnapshotDate=行情最近交易日。
+	if report.TradeDate != "20240121" || report.SnapshotDate != "20240120" {
+		t.Fatalf("日期语义异常: TradeDate=%q SnapshotDate=%q", report.TradeDate, report.SnapshotDate)
+	}
+	card := report.Cards[0]
+	if !almostEqual(card.Score, 0.19) {
+		t.Fatalf("收盘口径 Score = %v, want 0.19（官方日线重算）", card.Score)
+	}
+	if card.Stale {
+		t.Fatalf("最近交易日官方日线齐时不应 stale: %+v", card)
+	}
+	if len(st.snapshots) != 0 {
+		t.Fatalf("persist=false 不应落库快照: %v", st.snapshots)
+	}
+}
+
+func TestComputeQuerySignalNoQuotesKeepsRealtimeBasis(t *testing.T) {
+	// 全部标的无行情（SnapshotDate 为空）：无法判定最近交易日，不回退，Basis 保持 realtime。
+	st := newFakeStore()
+	st.recentDaily["510880.SH"] = mkFlatHistory("510880.SH", 19, "20240119", 1, 1)
+	c := NewSignalComputer(&fakeRealtimeSource{quotes: map[string]RealtimeQuote{}}, st, 5, fixedToday("20240121"))
+
+	report, err := c.ComputeQuerySignal(context.Background(), []string{"510880.SH"}, false)
+	if err != nil {
+		t.Fatalf("ComputeQuerySignal err: %v", err)
+	}
+	if report.Basis != BasisRealtime || report.SnapshotDate != "" {
+		t.Fatalf("无行情应保持 realtime 口径且 SnapshotDate 为空: %+v", report)
+	}
+}

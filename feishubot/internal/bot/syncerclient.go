@@ -85,9 +85,14 @@ type AdviceItem struct {
 type SignalResp struct {
 	TradeDate    string `json:"tradeDate"`
 	SnapshotDate string `json:"snapshotDate"`
-	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天），应短路不推送。
-	TradingDay bool             `json:"tradingDay"`
-	Cards      []SignalCardItem `json:"cards"`
+	// TradingDay 为 false 表示非交易日（快照交易日 ≠ 今天）：cron 推送应短路；
+	// signal 聊天命令不短路，改看 Basis。
+	TradingDay bool `json:"tradingDay"`
+	// Basis 标定信号口径：realtime = 盘中实时；
+	// close = 非交易日回退，卡片由最近交易日（SnapshotDate）官方收盘日线重算。
+	// 空串（旧版 syncer）按 realtime 处理。
+	Basis string           `json:"basis"`
+	Cards []SignalCardItem `json:"cards"`
 	// Advice 是五情形交易建议（现金 + 各标的），由 syncer 从 Cards 推导。
 	Advice []AdviceItem `json:"advice"`
 }
@@ -148,12 +153,26 @@ func (c *SyncerClient) SyncETFDaily(ctx context.Context) (*SyncResp, error) {
 	return &out, nil
 }
 
-// Signal 调 syncer POST /api/v1/rotation/signal 计算盘中信号（副作用：快照落库）。
+// Signal 调 syncer POST /api/v1/rotation/signal 计算盘中信号（副作用：快照落库，cron 14:45 用）。
 func (c *SyncerClient) Signal(ctx context.Context) (*SignalResp, error) {
+	return c.signal(ctx, true)
+}
+
+// SignalNoPersist 同 Signal 但 persist=false：只读计算、不落盘中快照（signal 聊天命令用）。
+// 非交易日 syncer 回退官方收盘口径（Basis=close），不短路。
+func (c *SyncerClient) SignalNoPersist(ctx context.Context) (*SignalResp, error) {
+	return c.signal(ctx, false)
+}
+
+func (c *SyncerClient) signal(ctx context.Context, persist bool) (*SignalResp, error) {
 	ctx, cancel := context.WithTimeout(ctx, signalTimeout)
 	defer cancel()
+	path := "/api/v1/rotation/signal"
+	if !persist {
+		path += "?persist=false"
+	}
 	var out SignalResp
-	if err := c.do(ctx, http.MethodPost, "/api/v1/rotation/signal", []byte(`{}`), &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, path, []byte(`{}`), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -25,10 +25,12 @@ func NewRotationSignalLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ro
 	}
 }
 
-// RotationSignal 计算全部启用同步标的的盘中信号卡片并落库盘中快照。
-// 薄壳：计算与落库都在 core.SignalComputer（已单测覆盖），交易建议在 core.ComputeAdvice
+// RotationSignal 计算全部启用同步标的的信号卡片与五情形交易建议。
+// persist=true（cron 14:45 默认）按主键落库盘中快照；persist=false（signal 聊天命令）只读。
+// 非交易日（快照交易日 ≠ 今天）回退最近交易日官方收盘口径（Basis=close），不短路。
+// 薄壳：计算与口径判定都在 core.SignalComputer（已单测覆盖），交易建议在 core.ComputeAdvice
 // （纯函数，已单测覆盖），这里只做标的解析与 JSON 适配。
-func (l *RotationSignalLogic) RotationSignal() (resp *types.SignalResp, err error) {
+func (l *RotationSignalLogic) RotationSignal(persist bool) (resp *types.SignalResp, err error) {
 	instruments, err := l.svcCtx.Store.ListSyncEnabled(l.ctx)
 	if err != nil {
 		return nil, err
@@ -40,7 +42,7 @@ func (l *RotationSignalLogic) RotationSignal() (resp *types.SignalResp, err erro
 		names[inst.TsCode] = inst.Name
 	}
 
-	report, err := l.svcCtx.SignalComputer.ComputeSignal(l.ctx, tsCodes)
+	report, err := l.svcCtx.SignalComputer.ComputeQuerySignal(l.ctx, tsCodes, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +51,7 @@ func (l *RotationSignalLogic) RotationSignal() (resp *types.SignalResp, err erro
 		TradeDate:    report.TradeDate,
 		SnapshotDate: report.SnapshotDate,
 		TradingDay:   report.SnapshotDate != "" && report.SnapshotDate == report.TradeDate,
+		Basis:        report.Basis,
 		Advice:       toAdviceItems(core.ComputeAdvice(report.Cards)),
 	}
 	for _, card := range report.Cards {

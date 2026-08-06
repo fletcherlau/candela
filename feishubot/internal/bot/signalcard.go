@@ -11,7 +11,11 @@ import (
 	"time"
 )
 
+// beijingTZ 北京时间（固定 +8，不依赖容器 tzdata），口径行的 15:00 判定用。
+var beijingTZ = time.FixedZone("Asia/Shanghai", 8*3600)
+
 // BuildSignalCardJSON 生成盘中信号卡片的飞书卡片 JSON（2.0 schema，原生表格组件）。纯函数。
+// 顶部口径行（盘中实时 / 已收盘 / 非交易日收盘回退），随后数据时间；
 // 信号表：排名/标的/动量得分 score/年化波动 σ_YZ/波动分位 q/目标仓位 w(q)，按名次排序，
 // rank 1 的标的单元格粗体高亮；建议表：若你当前持有/操作建议/目标仓位（现金 + 各标的）。
 // 任一标的新鲜度守卫触发时，表格上方给出红色告警；底部保留数据时间/生成时间。
@@ -20,8 +24,14 @@ func BuildSignalCardJSON(resp *SignalResp, now time.Time) string {
 		return marshalSignalCard([]map[string]any{markdownElement("syncer 未返回结果")})
 	}
 
+	// 数据时间的括号注：实时口径为盘中快照，收盘回退口径为官方收盘。
+	dataTag := "盘中快照"
+	if resp.Basis == "close" {
+		dataTag = "官方收盘"
+	}
 	elements := []map[string]any{
-		markdownElement(fmt.Sprintf("数据时间：%s（盘中快照）", dash(formatDate(resp.SnapshotDate)))),
+		markdownElement(basisLine(resp, now)),
+		markdownElement(fmt.Sprintf("数据时间：%s（%s）", dash(formatDate(resp.SnapshotDate)), dataTag)),
 	}
 
 	// 新鲜度告警置顶（表格上方）。
@@ -63,6 +73,20 @@ func BuildSignalCardJSON(resp *SignalResp, now time.Time) string {
 
 	elements = append(elements, markdownElement(fmt.Sprintf("生成时间：%s", now.Format("2006-01-02 15:04:05"))))
 	return marshalSignalCard(elements)
+}
+
+// basisLine 渲染口径行（卡片顶部，一行）：
+// basis=close → 非交易日回退，最近交易日官方收盘数据；
+// basis=realtime（或空，旧版 syncer）→ 盘中实时；交易日北京时间 ≥ 15:00 时
+// gtimg 最新价已是收盘价 → 已收盘。
+func basisLine(resp *SignalResp, now time.Time) string {
+	if resp.Basis == "close" {
+		return fmt.Sprintf("口径：非交易日，最近交易日 %s 收盘数据", dash(formatDate(resp.SnapshotDate)))
+	}
+	if resp.TradingDay && now.In(beijingTZ).Hour() >= 15 {
+		return "口径：已收盘（实时接口，最新价=收盘）"
+	}
+	return "口径：盘中实时"
 }
 
 // marshalSignalCard 打包 2.0 schema 卡片（蓝色标题头 + body elements）。
