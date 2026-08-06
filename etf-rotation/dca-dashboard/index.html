@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>定投资金曲线 · 生产基线（δ=0.005，无安全阀）</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --surface-0: #ffffff;
+    --surface-1: #f7f8f9;
+    --surface-2: #eef0f2;
+    --surface-3: #e3e6e9;
+    --ink-900: #16181b;
+    --ink-700: #3d434b;
+    --ink-500: #6b7280;
+    --ink-400: #9aa1ab;
+    --line: #dcdfe3;
+    --up: #E4002B;
+    --down: #00843D;
+    --amber: #D97706;
+    --blue: #2563EB;
+    --mmf: #b9bfc7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--surface-1);
+    color: var(--ink-900);
+    font-family: -apple-system, "PingFang SC", "SF Pro Text", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 32px 28px 48px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { margin-bottom: 24px; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.01em; }
+  .sub { margin-top: 6px; font-size: 13px; color: var(--ink-500); line-height: 1.6; }
+  .sub code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .card {
+    background: var(--surface-0);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px 12px;
+  }
+  .card .k { font-size: 12px; color: var(--ink-500); margin-bottom: 6px; }
+  .card .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card .d { font-size: 11px; color: var(--ink-400); margin-top: 4px; }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+
+  .panel {
+    background: var(--surface-0);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 16px 8px;
+    margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 14px; font-weight: 600; color: var(--ink-700); margin-bottom: 4px; }
+  .panel .hint { font-size: 11px; color: var(--ink-400); margin-bottom: 6px; }
+  #chart-equity { height: 380px; }
+  #chart-hold { height: 190px; }
+  #chart-dd { height: 240px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink-700); margin: 2px 0 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  footer { margin-top: 18px; font-size: 11px; color: var(--ink-400); line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>定投资金曲线 · 生产基线（runbook v1.3）</h1>
+    <div class="sub">
+      首期 <code>¥200,000</code> + 每月首交易日定投 <code>¥20,000</code> ·
+      ER 动量 + δ=0.005 差距缓冲（安全阀已于 2026-08 移除）+ 70/40 分位节流 + 货币 ETF 停车，无吊灯 ·
+      佣金万 2.35 不免五 + 滑点单边 7.5bps · 仓位微调阈值 5% · 空仓部分为现金（现金宝，收益不计）
+    </div>
+  </header>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="panel">
+    <h2>资金曲线</h2>
+    <div class="hint">实线：生产基线（无安全阀）；虚线：旧版（含安全阀）同口径对照</div>
+    <div id="chart-equity"></div>
+  </div>
+
+  <div class="panel">
+    <h2>持仓区间</h2>
+    <div class="hint">彩色 = 标的实际仓位，顶部灰色 = 现金占比（70/40 节流效果直接可见）</div>
+    <div class="legend" id="hold-legend"></div>
+    <div id="chart-hold"></div>
+  </div>
+
+  <div class="panel">
+    <h2>回撤</h2>
+    <div class="hint">实线：生产基线（份额法 NAV）；虚线：旧版（含安全阀）对照</div>
+    <div id="chart-dd"></div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script src="./data.js"></script>
+<script src="./data_valveon.js"></script>
+<script>
+const legacy = window.DCA_VALVEON;
+const { stats, names, daily } = window.DCA_DATA;
+const dates = daily.map(r => r.date);
+const values = daily.map(r => r.value);
+const legacyValues = legacy.daily.map(r => r.value);
+const invested = daily.map(r => r.invested);
+const dds = daily.map(r => +r.dd.toFixed(2));
+const legacyDds = legacy.daily.map(r => +r.dd.toFixed(2));
+const bs = legacy.stats;
+
+const HOLD_COLORS = {
+  "510880.SH": "#E4002B",
+  "518880.SH": "#D97706",
+  "159915.SZ": "#00843D",
+  "513100.SH": "#2563EB",
+  "MMF": "#b9bfc7"
+};
+
+const fmtWan = v => (v / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 1 }) + " 万";
+const pct = (v, d = 1) => (v > 0 ? "+" : "") + v.toFixed(d) + "%";
+const delta = (v, unit) => (v > 0 ? "+" : "") + v.toFixed(1) + unit;
+
+/* ---------- 统计卡片（差值 = 相对旧版含安全阀） ---------- */
+const cardDefs = [
+  { k: "期末总资产", v: "¥" + fmtWan(stats.final_value),
+    d: "旧版 ¥" + fmtWan(bs.final_value) + "（" + delta((stats.final_value - bs.final_value) / 10000, " 万") + "）" },
+  { k: "累计投入本金", v: "¥" + fmtWan(stats.invested_total), d: "首期 20 万 + 月投 2 万 × " + ((stats.invested_total - 200000) / 20000) + " 期" },
+  { k: "累计收益", v: "+¥" + fmtWan(stats.profit), cls: "up",
+    d: "占累计本金 " + pct(stats.profit_pct_of_invested) },
+  { k: "NAV 年化收益", v: pct(stats.nav_ann), cls: "up",
+    d: "旧版 " + pct(bs.nav_ann) + "（" + delta(stats.nav_ann - bs.nav_ann, "pp") + "）" },
+  { k: "最大回撤", v: stats.maxdd.toFixed(1) + "%", cls: "down",
+    d: "旧版 " + bs.maxdd.toFixed(1) + "%（" + delta(stats.maxdd - bs.maxdd, "pp") + "）" },
+  { k: "换仓次数", v: stats.switches + " 次", d: "旧版 " + bs.switches + " 次（" + (stats.switches - bs.switches) + "）" },
+  { k: "累计交易费用", v: "¥" + fmtWan(stats.cost_total), cls: "down",
+    d: "佣金 " + fmtWan(stats.comm_total) + " + 滑点 " + fmtWan(stats.slip_total) },
+  { k: "回测区间", v: (stats.days / 240).toFixed(1) + " 年", d: stats.start + " ~ " + stats.end },
+];
+document.getElementById("cards").innerHTML = cardDefs.map(c =>
+  `<div class="card"><div class="k">${c.k}</div><div class="v ${c.cls || ""}">${c.v}</div><div class="d">${c.d}</div></div>`
+).join("");
+
+document.getElementById("hold-legend").innerHTML = Object.keys(HOLD_COLORS).map(k =>
+  `<span><i style="background:${HOLD_COLORS[k]}"></i>${names[k]}</span>`
+).join("");
+
+const tooltipBase = {
+  trigger: "axis",
+  backgroundColor: "#fff",
+  borderColor: "#dcdfe3",
+  textStyle: { color: "#16181b", fontSize: 12 },
+  axisPointer: { type: "line", lineStyle: { color: "#9aa1ab", type: "dashed" } }
+};
+
+/* ---------- 1. 资金曲线 ---------- */
+const equityChart = echarts.init(document.getElementById("chart-equity"));
+equityChart.setOption({
+  animation: false,
+  grid: { left: 70, right: 20, top: 30, bottom: 30 },
+  tooltip: {
+    ...tooltipBase,
+    formatter: ps => {
+      const i = ps[0].dataIndex, r = daily[i], rb = legacy.daily[i];
+      return `<b>${r.date}</b><br/>总资产：¥${r.value.toLocaleString("zh-CN")}` +
+        `<br/>旧版（含安全阀）：¥${rb.value.toLocaleString("zh-CN")}` +
+        `<br/>累计投入：¥${r.invested.toLocaleString("zh-CN")}` +
+        `<br/>持仓：${names[r.holding]}（现金占比 ${(r.mmf_w * 100).toFixed(0)}%）`;
+    }
+  },
+  legend: { data: ["总资产（无安全阀）", "旧版（含安全阀）", "累计投入"], top: 2, textStyle: { fontSize: 12, color: "#3d434b" } },
+  xAxis: { type: "category", data: dates, axisLabel: { color: "#6b7280" }, axisLine: { lineStyle: { color: "#dcdfe3" } } },
+  yAxis: {
+    type: "value",
+    axisLabel: { color: "#6b7280", formatter: v => (v / 10000) + " 万" },
+    splitLine: { lineStyle: { color: "#eef0f2" } }
+  },
+  dataZoom: [{ type: "inside" }],
+  series: [
+    {
+      name: "总资产（无安全阀）", type: "line", data: values, symbol: "none",
+      lineStyle: { color: "#16181b", width: 1.8 },
+      areaStyle: { color: "rgba(22,24,27,0.06)" }
+    },
+    {
+      name: "旧版（含安全阀）", type: "line", data: legacyValues, symbol: "none",
+      lineStyle: { color: "#2563EB", width: 1.2, type: "dashed" }
+    },
+    {
+      name: "累计投入", type: "line", data: invested, symbol: "none",
+      lineStyle: { color: "#9aa1ab", width: 1.2, type: "dashed" }
+    }
+  ]
+});
+
+/* ---------- 2. 持仓颜色带（彩色=标的仓位，顶部灰色=货币ETF占比） ---------- */
+const holdChart = echarts.init(document.getElementById("chart-hold"));
+const etfKeys = Object.keys(HOLD_COLORS).filter(k => k !== "MMF");
+const holdSeries = [
+  ...etfKeys.map(k => ({
+    name: names[k], type: "bar", stack: "h", barWidth: "100%",
+    itemStyle: { color: HOLD_COLORS[k] },
+    data: daily.map(r => (r.holding === k ? +(1 - r.mmf_w).toFixed(4) : 0)),
+    emphasis: { disabled: true }
+  })),
+  {
+    name: names["MMF"], type: "bar", stack: "h", barWidth: "100%",
+    itemStyle: { color: HOLD_COLORS["MMF"] },
+    data: daily.map(r => r.mmf_w),
+    emphasis: { disabled: true }
+  }
+];
+holdChart.setOption({
+  animation: false,
+  grid: { left: 70, right: 20, top: 8, bottom: 26 },
+  tooltip: {
+    ...tooltipBase,
+    formatter: ps => {
+      const r = daily[ps[0].dataIndex];
+      return `<b>${r.date}</b><br/>持仓：${names[r.holding]}（${((1 - r.mmf_w) * 100).toFixed(1)}%）` +
+        `<br/>现金：${(r.mmf_w * 100).toFixed(1)}%`;
+    }
+  },
+  xAxis: { type: "category", data: dates, axisLabel: { color: "#6b7280" }, axisLine: { lineStyle: { color: "#dcdfe3" } } },
+  yAxis: {
+    max: 1,
+    axisLabel: { color: "#6b7280", formatter: v => (v * 100).toFixed(0) + "%" },
+    splitLine: { lineStyle: { color: "#eef0f2" } }
+  },
+  dataZoom: [{ type: "inside" }],
+  series: holdSeries
+});
+
+/* ---------- 3. 回撤曲线 ---------- */
+const ddChart = echarts.init(document.getElementById("chart-dd"));
+ddChart.setOption({
+  animation: false,
+  grid: { left: 70, right: 20, top: 16, bottom: 52 },
+  tooltip: {
+    ...tooltipBase,
+    formatter: ps => {
+      const i = ps[0].dataIndex;
+      return `<b>${daily[i].date}</b><br/>生产基线：${daily[i].dd.toFixed(2)}%<br/>旧版：${legacy.daily[i].dd.toFixed(2)}%`;
+    }
+  },
+  legend: { data: ["生产基线（无安全阀）", "旧版（含安全阀）"], top: 0, textStyle: { fontSize: 12, color: "#3d434b" } },
+  xAxis: { type: "category", data: dates, axisLabel: { color: "#6b7280" }, axisLine: { lineStyle: { color: "#dcdfe3" } } },
+  yAxis: {
+    type: "value", max: 0,
+    axisLabel: { color: "#6b7280", formatter: v => v + "%" },
+    splitLine: { lineStyle: { color: "#eef0f2" } }
+  },
+  dataZoom: [
+    { type: "inside" },
+    { type: "slider", height: 18, bottom: 10, borderColor: "#dcdfe3", backgroundColor: "#f7f8f9",
+      fillerColor: "rgba(22,24,27,0.08)", handleStyle: { color: "#9aa1ab" },
+      textStyle: { color: "#6b7280", fontSize: 10 } }
+  ],
+  series: [
+    {
+      name: "生产基线（无安全阀）", type: "line", data: dds, symbol: "none",
+      lineStyle: { color: "#00843D", width: 1.4 },
+      areaStyle: { color: "rgba(0,132,61,0.15)" },
+      markLine: {
+        symbol: "none", silent: true,
+        lineStyle: { color: "#00843D", type: "dashed", width: 1 },
+        label: { color: "#00843D", fontSize: 11, formatter: "最大回撤 " + stats.maxdd.toFixed(1) + "%" },
+        data: [{ yAxis: stats.maxdd }]
+      }
+    },
+    {
+      name: "旧版（含安全阀）", type: "line", data: legacyDds, symbol: "none",
+      lineStyle: { color: "#9aa1ab", width: 1, type: "dashed" }
+    }
+  ]
+});
+
+echarts.connect([equityChart, holdChart, ddChart]);
+window.addEventListener("resize", () => [equityChart, holdChart, ddChart].forEach(c => c.resize()));
+
+document.getElementById("foot").innerHTML =
+  `策略口径：production-runbook.md v1.3 生产基线（rotation7.py run(mult=None)，无安全阀），收盘执行。
+   成本模型：四标的佣金万 2.35（单笔最低 ¥5）+ 滑点单边 7.5bps；空仓部分为现金（实际用现金宝，收益难算按 0 计，属保守口径）。
+   数据源：tushare fund_daily 后复权；模拟脚本 vol-app-data/dca_sim.py（SAFETY_VALVE=0），旧版对照 dca_sim_valveon.json。`;
+</script>
+</body>
+</html>
