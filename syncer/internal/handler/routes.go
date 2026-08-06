@@ -46,6 +46,21 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Path:    "/api/v1/rotation/close-report",
 					Handler: RotationCloseReportHandler(serverCtx),
 				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/api/v1/sync/sw-industry",
+					Handler: SyncSwIndustryHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/api/v1/sync/sw-index-daily",
+					Handler: SyncSwIndexDailyHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/api/v1/sync/sw-status",
+					Handler: SwStatusHandler(serverCtx),
+				},
 			}...,
 		),
 	)

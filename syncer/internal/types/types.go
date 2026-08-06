@@ -112,3 +112,42 @@ type CloseReportResp struct {
 	Diffs       []SlippageDiffItem `json:"diffs"`
 	Cards       []SignalCardItem   `json:"cards"`
 }
+
+type SWIndustrySyncResp struct {
+	DictFetched    int    `json:"dictFetched"`
+	DictUpserted   int    `json:"dictUpserted"`
+	MemberFetched  int    `json:"memberFetched"`
+	MemberUpserted int    `json:"memberUpserted"`
+	Message        string `json:"message"`
+}
+
+type SWDailyResultItem struct {
+	TsCode    string `json:"tsCode"`
+	Name      string `json:"name"`
+	Level     string `json:"level"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Fetched   int    `json:"fetched"`
+	Upserted  int    `json:"upserted"`
+	Message   string `json:"message"`
+}
+
+type SWDailySyncResp struct {
+	Total   int                `json:"total"`
+	Success int                `json:"success"`
+	Results []SWDailyResultItem `json:"results"`
+}
+
+type SWIndexStatusItem struct {
+	TsCode          string `json:"tsCode"`
+	Name            string `json:"name"`
+	Level           string `json:"level"`
+	LatestTradeDate string `json:"latestTradeDate"`
+	DailyRows       int    `json:"dailyRows"`
+}
+
+type SWStatusResp struct {
+	IndustryRows int                `json:"industryRows"`
+	MemberRows   int                `json:"memberRows"`
+	Indexes      []SWIndexStatusItem `json:"indexes"`
+}

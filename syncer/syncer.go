@@ -28,6 +28,7 @@ import (
 var (
 	configFile = flag.String("f", "etc/syncer-api.yaml", "the config file")
 	once       = flag.Bool("once", false, "run a one-shot sync for all sync-enabled instruments and exit")
+	onceSW     = flag.Bool("once-sw", false, "run a one-shot sync for SW industry dictionary, membership and index daily, then exit")
 )
 
 func main() {
@@ -61,13 +62,17 @@ func main() {
 	}
 
 	// 限频由 go-tushare 客户端内置：任意两次 HTTP 调用间隔不低于 ThrottleMs。
-	source := &fundDailySource{client: tushare.NewClient(c.Tushare.Token,
+	tushareClient := tushare.NewClient(c.Tushare.Token,
 		tushare.WithHTTPURL(c.Tushare.BaseURL),
 		tushare.WithMinInterval(time.Duration(c.Sync.ThrottleMs)*time.Millisecond),
-	)}
+	)
+	source := &fundDailySource{client: tushareClient}
+	swSrc := &swSource{client: tushareClient}
 	st := store.NewMySQLStore(db)
 	syncer := core.NewSyncer(source, st,
 		c.Sync.ChunkDays, c.Sync.DefaultStartDate, nil)
+	swSyncer := core.NewSWSyncer(swSrc, st,
+		c.Sync.ChunkDays, c.Sync.DefaultStartDate, "", nil)
 	// 盘中信号：gtimg 实时行情 + 库内日线，分位窗口与 today 用默认值。
 	signalComputer := core.NewSignalComputer(newGtimgSource(""), st, 0, nil)
 
@@ -81,10 +86,26 @@ func main() {
 		return
 	}
 
+	if *onceSW {
+		industrySum := swSyncer.RunIndustry(context.Background())
+		out, _ := json.MarshalIndent(industrySum, "", "  ")
+		fmt.Println(string(out))
+		if industrySum.Message != "ok" {
+			log.Fatalf("one-shot sw industry sync failed: %s", industrySum.Message)
+		}
+		dailySum := swSyncer.RunDaily(context.Background(), nil)
+		out, _ = json.MarshalIndent(dailySum, "", "  ")
+		fmt.Println(string(out))
+		if dailySum.Success != dailySum.Total {
+			log.Fatalf("one-shot sw index daily sync incomplete: %d/%d succeeded", dailySum.Success, dailySum.Total)
+		}
+		return
+	}
+
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
 
-	svcCtx := svc.NewServiceContext(c, syncer, signalComputer, st)
+	svcCtx := svc.NewServiceContext(c, syncer, swSyncer, signalComputer, st, st)
 	handler.RegisterHandlers(server, svcCtx)
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)

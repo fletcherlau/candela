@@ -117,6 +117,48 @@ service syncer-api {
 	get /api/v1/ping returns (PingResp)
 }
 
+// SWIndustrySyncResp 申万行业字典 + 成分归属同步摘要。
+type SWIndustrySyncResp {
+	DictFetched    int    `json:"dictFetched"`
+	DictUpserted   int    `json:"dictUpserted"`
+	MemberFetched  int    `json:"memberFetched"`
+	MemberUpserted int    `json:"memberUpserted"`
+	Message        string `json:"message"`
+}
+
+// SWDailyResultItem 单个申万行业指数的日线同步结果。
+type SWDailyResultItem {
+	TsCode    string `json:"tsCode"`
+	Name      string `json:"name"`
+	Level     string `json:"level"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Fetched   int    `json:"fetched"`
+	Upserted  int    `json:"upserted"`
+	Message   string `json:"message"`
+}
+
+type SWDailySyncResp {
+	Total   int                `json:"total"`
+	Success int                `json:"success"`
+	Results []SWDailyResultItem `json:"results"`
+}
+
+type SWIndexStatusItem {
+	TsCode          string `json:"tsCode"`
+	Name            string `json:"name"`
+	Level           string `json:"level"`
+	LatestTradeDate string `json:"latestTradeDate"`
+	DailyRows       int    `json:"dailyRows"`
+}
+
+// SWStatusResp 申万数据同步状态：字典/成分行数 + 各指数日线进度。
+type SWStatusResp {
+	IndustryRows int                `json:"industryRows"`
+	MemberRows   int                `json:"memberRows"`
+	Indexes      []SWIndexStatusItem `json:"indexes"`
+}
+
 @server (
 	middleware: ApiKeyAuth
 )
@@ -132,4 +174,16 @@ service syncer-api {
 
 	@handler RotationCloseReport
 	post /api/v1/rotation/close-report returns (CloseReportResp)
+
+	// SyncSwIndustry 全量刷新申万行业字典（index_classify）并逐 L1 行业刷新成分归属（index_member_all）。
+	@handler SyncSwIndustry
+	post /api/v1/sync/sw-industry returns (SWIndustrySyncResp)
+
+	// SyncSwIndexDaily 增量同步申万行业指数日线（sw_daily）；tsCodes 为空则同步字典内全部指数。
+	@handler SyncSwIndexDaily
+	post /api/v1/sync/sw-index-daily (SyncReq) returns (SWDailySyncResp)
+
+	// SyncSwStatus 申万数据同步状态：字典/成分行数与各指数日线进度。
+	@handler SwStatus
+	get /api/v1/sync/sw-status returns (SWStatusResp)
 }
