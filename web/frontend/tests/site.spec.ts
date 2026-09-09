@@ -18,11 +18,13 @@ test("separate pages show honest coverage, filters and retained research", async
     page.getByRole("heading", { name: "市场视图，正在起步" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "刷新状态" })).toHaveCount(0);
+  await page.screenshot({path: "/tmp/candela-market.png", fullPage: true});
   await page.getByRole("link", { name: "查看数据覆盖" }).click();
   await expect(page.getByText("2024.01.02")).toBeVisible();
   await expect(page.getByText("申万行业 · 读取失败")).toBeVisible();
   await expect(page.getByText("尚未接入", { exact: true })).toBeVisible();
   await expect(page.getByText("暂无数据", { exact: true })).toBeVisible();
+  await page.screenshot({path: "/tmp/candela-data.png", fullPage: true});
   await page.getByRole("button", { name: "ETF", exact: true }).click();
   await expect(page.getByText("申万行业 · 读取失败")).toHaveCount(0);
   await page.getByRole("searchbox").fill("510300");

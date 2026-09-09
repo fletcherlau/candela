@@ -87,6 +87,8 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
+	case "/etf-rotation/dca-dashboard/":
+		http.Redirect(w, r, "/etf-rotation/dca-dashboard/index.html", http.StatusFound)
 	case "/api/catalog":
 		a.catalog(w, r)
 	case "/api/session":
