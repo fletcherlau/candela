@@ -61,5 +61,26 @@ services:
     depends_on:
       - syncer
 
+  web:
+    profiles: [web]
+    build:
+      context: ..
+      dockerfile: deployments/web.Dockerfile
+    container_name: candela-web
+    restart: unless-stopped
+    environment:
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://demo.candlea.cn}
+      CF_ACCESS_ISSUER: ${CF_ACCESS_ISSUER:-}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
+      SYNCER_API_BASE: http://syncer:8888
+      SYNC_API_KEY: ${SYNC_API_KEY:?SYNC_API_KEY is required}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - syncer
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
 volumes:
   mysql_data:

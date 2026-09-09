@@ -107,6 +107,7 @@ func main() {
 
 	svcCtx := svc.NewServiceContext(c, syncer, swSyncer, signalComputer, st, st)
 	handler.RegisterHandlers(server, svcCtx)
+	handler.RegisterCatalog(server, svcCtx, st)
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
 	server.Start()
