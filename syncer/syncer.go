@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"syncer/internal/config"
@@ -18,10 +19,12 @@ import (
 	"syncer/internal/schema"
 	"syncer/internal/store"
 	"syncer/internal/svc"
+	"syncer/internal/syncrun"
 
 	tushare "github.com/fletcherlau/go-tushare"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/zeromicro/go-zero/core/conf"
+	"github.com/zeromicro/go-zero/core/proc"
 	"github.com/zeromicro/go-zero/rest"
 )
 
@@ -108,6 +111,22 @@ func main() {
 	svcCtx := svc.NewServiceContext(c, syncer, swSyncer, signalComputer, st, st)
 	handler.RegisterHandlers(server, svcCtx)
 	handler.RegisterCatalog(server, svcCtx, st)
+	runStore := syncrun.NewStore(db)
+	for _, route := range []rest.Route{
+		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
+		{Method: http.MethodPost, Path: "/api/v1/data/sync-runs", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
+		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs/:id", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
+	} {
+		server.AddRoute(route)
+	}
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		(&syncrun.Worker{Store: runStore, Source: &syncrun.TushareSource{Client: tushareClient}}).Serve(workerCtx)
+	}()
+	proc.AddShutdownListener(stopWorker)
+	defer func() { stopWorker(); <-workerDone }()
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
 	server.Start()

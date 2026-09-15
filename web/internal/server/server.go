@@ -82,8 +82,14 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "跨站或缺少验证的写入请求已拒绝。", http.StatusForbidden)
 			return
 		}
-		w.Header().Set("Allow", "GET, HEAD")
-		http.Error(w, "当前版本只支持读取。", http.StatusMethodNotAllowed)
+		if r.Method != http.MethodPost || r.URL.Path != "/api/sync-runs" {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "不支持此操作。", http.StatusMethodNotAllowed)
+			return
+		}
+	}
+	if r.URL.Path == "/api/sync-runs" || strings.HasPrefix(r.URL.Path, "/api/sync-runs/") {
+		a.syncRuns(w, r)
 		return
 	}
 	switch r.URL.Path {

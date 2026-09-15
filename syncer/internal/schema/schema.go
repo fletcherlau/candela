@@ -1,5 +1,5 @@
 // Package schema 在服务启动时保证所需的 MySQL 表存在。
-// 正式的 schema 迁移工具等表数量增长后再引入（见 issue #1 Out of Scope）。
+// Legacy tables remain replayable; new structures use numbered migrations.
 package schema
 
 import (
@@ -113,5 +113,5 @@ func Ensure(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("schema statement %d: %w", i, err)
 		}
 	}
-	return nil
+	return migrate(ctx, db)
 }

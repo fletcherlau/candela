@@ -98,7 +98,7 @@ function Home() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Badge variant="secondary">行情尚未接入</Badge>
+          <Badge variant="secondary">市场图表准备中</Badge>
         </CardContent>
       </Card>
     </div>
@@ -130,16 +130,16 @@ function Market() {
               沪深 A 股整体市场表现
             </CardDescription>
           </div>
-          <Badge variant="secondary">尚未接入</Badge>
+          <Badge variant="secondary">准备中</Badge>
         </CardHeader>
         <CardContent className="flex min-h-80 flex-col items-center justify-center px-6 py-16 text-center">
           <ChartNoAxesCombined
             aria-hidden="true"
             className="mb-6 size-10 text-primary/60"
           />
-          <h2 className="text-xl font-medium">市场数据尚未接入</h2>
+          <h2 className="text-xl font-medium">市场图表准备中</h2>
           <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground">
-            中证全指的历史行情尚未就绪，当前暂无走势、MACD 或市场状态可供查看。
+            市场走势与状态分析正在准备，完成后可在这里查看。
           </p>
         </CardContent>
       </Card>
@@ -150,7 +150,7 @@ function Market() {
             <CardDescription>依据已完成月份的数据确认。</CardDescription>
           </CardHeader>
           <CardContent>
-            <span className="text-sm text-muted-foreground">等待行情数据</span>
+            <span className="text-sm text-muted-foreground">等待状态分析</span>
           </CardContent>
         </Card>
         <Card className="shadow-none">
@@ -161,7 +161,7 @@ function Market() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <span className="text-sm text-muted-foreground">等待行情数据</span>
+            <span className="text-sm text-muted-foreground">等待状态分析</span>
           </CardContent>
         </Card>
       </div>

@@ -8,11 +8,17 @@ import (
 // Catalog reports observed coverage; available means stored, not up to date.
 func (s *MySQLStore) Catalog(ctx context.Context) catalog.Result {
 	groups := []catalog.Group{
-		{ID: "csi", Name: "中证全指", Status: "not_connected", Items: []catalog.Item{{ID: "csi:000985.CSI", Code: "000985.CSI", Name: "中证全指", Kind: "指数日线", Status: "not_connected", Note: "指数接入将在后续任务提供，当前没有已接入的指数序列。"}}},
+		{ID: "csi", Name: "中证全指", Status: "available", Items: []catalog.Item{}},
 		{ID: "etf", Name: "ETF", Status: "available", Items: []catalog.Item{}},
 		{ID: "sw", Name: "申万行业", Status: "available", Items: []catalog.Item{}},
 	}
 	var err error
+	groups[0].Items, err = s.indexCoverage(ctx)
+	if err != nil {
+		groups[0].Status = "error"
+		groups[0].Items = []catalog.Item{}
+		groups[0].Message = "指数数据读取失败，请稍后重试。"
+	}
 	groups[1].Items, err = s.etfCoverage(ctx)
 	if err != nil {
 		groups[1].Status = "error"
@@ -103,4 +109,18 @@ func (s *MySQLStore) swCoverage(ctx context.Context) ([]catalog.Item, error) {
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func (s *MySQLStore) indexCoverage(ctx context.Context) ([]catalog.Item, error) {
+	var count int64
+	item := catalog.Item{ID: "csi:000985.CSI", Code: "000985.CSI", Name: "中证全指", Kind: "指数日线", Status: "available", Note: "Tushare index_daily 原始日线；不参与 ETF 复权或策略候选。"}
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*),COALESCE(MIN(trade_date),''),COALESCE(MAX(trade_date),'') FROM index_daily WHERE ts_code=?", item.Code).Scan(&count, &item.StartDate, &item.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	item.Rows = &count
+	if count == 0 {
+		item.Status = "no_data"
+	}
+	return []catalog.Item{item}, nil
 }

@@ -52,7 +52,7 @@ test.describe("authenticated website", () => {
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/market$/);
     await expect(
-      page.getByRole("heading", { name: "市场数据尚未接入" }),
+      page.getByRole("heading", { name: "市场图表准备中" }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "刷新状态" })).toHaveCount(0);
     await expect(

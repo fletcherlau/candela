@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -24,7 +25,33 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"keys": []any{map[string]any{"kty": "RSA", "alg": "RS256", "use": "sig", "kid": "test", "n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB"}}})
 	}))
 	defer jwks.Close()
+	var syncCalls atomic.Int32
+	var syncFailure atomic.Bool
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/data/sync-runs") {
+			syncCalls.Add(1)
+			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" || r.Header.Get("X-CSRF-Token") != "" {
+				t.Error("incorrect internal credentials")
+			}
+			if syncFailure.Load() {
+				w.WriteHeader(500)
+				io.WriteString(w, "server-only-secret database details")
+				return
+			}
+			if r.Method == http.MethodPost {
+				body, _ := io.ReadAll(r.Body)
+				if string(body) != `{"mode":"backfill"}` {
+					t.Errorf("unexpected body %s", body)
+				}
+				w.WriteHeader(202)
+				io.WriteString(w, `{"run":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"queued"},"deduplicated":false}`)
+			} else if strings.HasSuffix(r.URL.Path, "/sync-runs") {
+				io.WriteString(w, `{"runs":[]}`)
+			} else {
+				io.WriteString(w, `{"run":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"queued"}}`)
+			}
+			return
+		}
 		if r.URL.Path != "/api/v1/data/catalog" || r.Header.Get("X-Api-Key") != "server-only-secret" {
 			t.Error("incorrect internal catalog request")
 		}
@@ -49,7 +76,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	wrong, _ := rsa.GenerateKey(rand.Reader, 2048)
 	valid := sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), key)
 	for _, token := range []string{"", "not-a-jwt", sign(jwks.URL, "other-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(-time.Hour).Unix(), key), sign("https://evil.invalid", "demo-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), wrong)} {
-		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/assets/app.js", "/research/index.html"} {
+		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
 			req := httptest.NewRequest("GET", path, nil)
 			req.Header.Set("Cf-Access-Jwt-Assertion", token)
 			rec := httptest.NewRecorder()
@@ -128,6 +155,60 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			if rec.Code != 404 {
 				t.Fatalf("unexpected exposure %s %d", path, rec.Code)
 			}
+		}
+	})
+
+	t.Run("sync writes require Access CSRF and an allowlisted body", func(t *testing.T) {
+		csrf := strings.Repeat("x", 43)
+		send := func(method, path, body, origin, token string, cookie bool) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(method, path, strings.NewReader(body))
+			req.Header.Set("Cf-Access-Jwt-Assertion", valid)
+			req.Header.Set("Origin", origin)
+			req.Header.Set("X-CSRF-Token", token)
+			if cookie {
+				req.AddCookie(&http.Cookie{Name: "__Host-candela-csrf", Value: csrf})
+			}
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, req)
+			return rec
+		}
+		for _, tc := range []struct {
+			method, path, body, origin, token string
+			cookie                            bool
+			status                            int
+		}{
+			{"POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://evil.invalid", csrf, true, 403},
+			{"POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", csrf, false, 403},
+			{"POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", "mismatch", true, 403},
+			{"POST", "/api/sync-runs", `{"mode":"cancel"}`, "https://demo.candlea.cn", csrf, true, 400},
+			{"POST", "/api/sync-runs", `{"mode":"backfill","code":"510300.SH"}`, "https://demo.candlea.cn", csrf, true, 400},
+			{"POST", "/api/sync-runs", `{"mode":"backfill"}{}`, "https://demo.candlea.cn", csrf, true, 400},
+			{"POST", "/api/sync-runs", strings.Repeat("x", 2048), "https://demo.candlea.cn", csrf, true, 400},
+			{"POST", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", `{}`, "https://demo.candlea.cn", csrf, true, 405},
+			{"DELETE", "/api/sync-runs", `{}`, "https://demo.candlea.cn", csrf, true, 405},
+			{"GET", "/api/sync-runs/../../sync/status", "", "", "", false, 404},
+			{"GET", "/api/sync-runs?target=evil", "", "", "", false, 400},
+		} {
+			before := syncCalls.Load()
+			rec := send(tc.method, tc.path, tc.body, tc.origin, tc.token, tc.cookie)
+			if rec.Code != tc.status || syncCalls.Load() != before {
+				t.Fatalf("unsafe %s %s: %d", tc.method, tc.path, rec.Code)
+			}
+		}
+		rec := send("POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", csrf, true)
+		if rec.Code != 202 || !strings.Contains(rec.Body.String(), "queued") {
+			t.Fatalf("accepted %d %s", rec.Code, rec.Body.String())
+		}
+		for _, path := range []string{"/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
+			if rec := send("GET", path, "", "", "", false); rec.Code != 200 {
+				t.Fatal("query failed", rec.Code)
+			}
+		}
+		syncFailure.Store(true)
+		defer syncFailure.Store(false)
+		rec = send("POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", csrf, true)
+		if rec.Code != 502 || strings.Contains(rec.Body.String(), "server-only-secret") {
+			t.Fatal("upstream details leaked")
 		}
 	})
 
