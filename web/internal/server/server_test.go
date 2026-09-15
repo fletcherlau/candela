@@ -49,7 +49,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	wrong, _ := rsa.GenerateKey(rand.Reader, 2048)
 	valid := sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), key)
 	for _, token := range []string{"", "not-a-jwt", sign(jwks.URL, "other-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(-time.Hour).Unix(), key), sign("https://evil.invalid", "demo-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), wrong)} {
-		for _, path := range []string{"/", "/data", "/api/catalog", "/assets/app.js", "/research/index.html"} {
+		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/assets/app.js", "/research/index.html"} {
 			req := httptest.NewRequest("GET", path, nil)
 			req.Header.Set("Cf-Access-Jwt-Assertion", token)
 			rec := httptest.NewRecorder()
@@ -59,7 +59,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			}
 		}
 	}
-	for _, path := range []string{"/", "/market", "/data", "/api/catalog"} {
+	for _, path := range []string{"/", "/market", "/admin", "/admin/data", "/api/catalog"} {
 		req := httptest.NewRequest("GET", path, nil)
 		req.Header.Set("Cf-Access-Jwt-Assertion", valid)
 		rec := httptest.NewRecorder()
@@ -68,6 +68,16 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			t.Fatalf("authorized %s: %d %s", path, rec.Code, rec.Body.String())
 		}
 	}
+	for from, to := range map[string]string{"/data": "/admin/data", "/research": "/"} {
+		req := httptest.NewRequest("GET", from, nil)
+		req.Header.Set("Cf-Access-Jwt-Assertion", valid)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+		if rec.Code != http.StatusFound || rec.Header().Get("Location") != to {
+			t.Fatalf("old route %s did not redirect to %s", from, to)
+		}
+	}
+
 	req := httptest.NewRequest("GET", "/api/v1/sync/status", nil)
 	req.Header.Set("Cf-Access-Jwt-Assertion", valid)
 	rec := httptest.NewRecorder()

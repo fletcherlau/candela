@@ -101,7 +101,11 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "__Host-candela-csrf", Value: csrf, Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode, MaxAge: 3600})
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"csrfToken": csrf})
-	case "/", "/market", "/data", "/research":
+	case "/data":
+		http.Redirect(w, r, "/admin/data", http.StatusFound)
+	case "/research":
+		http.Redirect(w, r, "/", http.StatusFound)
+	case "/", "/market", "/admin", "/admin/data":
 		a.file(w, r, a.cfg.Static, "index.html")
 	default:
 		if strings.HasPrefix(r.URL.Path, "/assets/") && fs.ValidPath(strings.TrimPrefix(r.URL.Path, "/")) {

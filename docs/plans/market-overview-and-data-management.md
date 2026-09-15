@@ -1,5 +1,7 @@
 # Candela 首版网站 · 已确认实现方案
 
+> 2026-09-10 用户确认修订：前台为 Logo +“策略 → 市场状态”的顶部导航；管理独立位于 `/admin`，前台不设入口；研究档案从产品导航移除。前端采用 React + TypeScript + Vite、Tailwind CSS v4 与 shadcn/ui。以下原始拆分中的旧导航描述由本修订覆盖；后续策略可视化另行交付。详见 ADR-0006。GitHub issue 的原文尚待同步。
+
 正式 issue：[PRD #17](https://github.com/fletcherlau/candela/issues/17)。
 
 日期：2026-09-09。配套 [PRD](../specs/market-overview-and-data-management.md)。实现方案、测试边界与任务拆分已获用户批准；10 项任务已发布为 #18–#27，见[任务清单](market-overview-tickets/README.md)。尚未编码、建表或部署。

@@ -1,5 +1,7 @@
 # T01：统一网站入口与只读数据管理
 
+> 2026-09-10 用户确认修订：前台为 Logo +“策略 → 市场状态”的顶部导航；管理独立位于 `/admin`，前台不设入口；研究档案从产品导航移除。前端采用 React + TypeScript + Vite、Tailwind CSS v4 与 shadcn/ui。以下原始拆分中的旧导航描述由本修订覆盖；后续策略可视化另行交付。详见 ADR-0006。GitHub issue 的原文尚待同步。
+
 状态：用户已批准并发布，标签 ready-for-agent。正式任务：[#18](https://github.com/fletcherlau/candela/issues/18)。
 
 ## Parent

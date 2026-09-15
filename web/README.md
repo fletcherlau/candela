@@ -1,6 +1,6 @@
 # Candela 网站（#18）
 
-独立 Go 服务提供受 Access 保护的网页与只读数据目录。浏览器仅访问本站，网站只调用 syncer 的目录接口，不连接 MySQL。前端使用 TypeScript / Vite；本任务不引入图表、同步操作或新数据采集。
+独立 Go 服务提供受 Access 保护的网页与只读数据目录。浏览器仅访问本站，网站只调用 syncer 的目录接口，不连接 MySQL。前端使用 React / TypeScript / Vite、Tailwind CSS v4 和 shadcn/ui；本任务不引入图表、同步操作或新数据采集。
 
 ## 配置与运行
 
@@ -30,7 +30,8 @@ docker compose -f deployments/compose.yaml --env-file .env --profile web up -d -
 - 每个分类单独表示读取失败，保留其他成功分类。ETF 日线、因子各自统计最早／最晚日期和记录数，包括停用对象。申万日线独立统计；字典与成分是参考数据，不伪造行情日期。
 - 中证全指尚未接入是 #18 的明确状态，接入交给 #19。“已有数据”不等于已更新至今天；刷新只重新查询覆盖。
 - `GET /api/session`：生成 Secure、HttpOnly、SameSite=Strict 的 CSRF Cookie，返回配对令牌。未来写操作必须同时携带本站 Origin、Cookie 和 X-CSRF-Token；当前所有写操作即便验证通过也返回 405。
-- `/market`、`/data`、`/research` 为独立页面；原研究文件只允许固定四个资源名，保留原研究相对引用和旧目录路由，不开放目录浏览或任意文件读取。
+- `/` 为品牌首页，顶栏仅含 Logo 与“策略 → 市场状态”；`/market` 为市场状态。`/admin` 与 `/admin/data` 为独立数据管理页面，前台无后台入口。旧 `/data` 跳转至 `/admin/data`，`/research` 跳转至首页；研究档案和版本对照不再进入产品导航。原研究静态文件仅保留旧链接兼容。
+- 基础控件从 shadcn/ui 官方 registry 引入，源码归仓库维护（`src/components/ui`）；通过 `components.json` 添加组件，业务页面放在 `src/pages`。样式令牌集中在 `src/style.css`，沿用 Candela 配色。
 - 所有页面、资源与 API 都验证 Access 的签名、issuer、audience、有效期和 nbf；内部目录转发不接受客户端自定义目的地址，也不转发 Access 凭据。
 
 ## 验证
