@@ -121,6 +121,12 @@
       "skillPath": "skills/engineering/triage/SKILL.md",
       "computedHash": "8695824ffe756567f6cf3b758853a094a9c974bf96226cde88b0b6c08099dabc"
     },
+    "tushare": {
+      "source": "waditu-tushare/skills",
+      "sourceType": "github",
+      "skillPath": "tushare/SKILL.md",
+      "computedHash": "6e8c82c438a9494bb932c695769ce9ff1dede5d69cd90753f0f182b0dc0f3a7a"
+    },
     "wayfinder": {
       "source": "mattpocock/skills",
       "sourceType": "github",
