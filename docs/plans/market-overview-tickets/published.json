@@ -1,0 +1,143 @@
+{
+  "parent": 17,
+  "tickets": {
+    "1": {
+      "number": 18,
+      "url": "https://github.com/fletcherlau/candela/issues/18",
+      "title": "T01: 统一网站入口与只读数据管理",
+      "body_sha256": "d8ebe100ebaac397c793da94b43fc6a406b2d8bdbedd2dcc0e62a801aefd72da",
+      "database_id": 5401628089,
+      "verified": true,
+      "parent_linked": true
+    },
+    "2": {
+      "number": 19,
+      "url": "https://github.com/fletcherlau/candela/issues/19",
+      "title": "T02: 中证全指后台回填、增量同步与进度查询",
+      "body_sha256": "6ea8f6951f759d454c4a4b22c3545760f0b395351d2107414e639ec417204d6e",
+      "database_id": 5401629149,
+      "verified": true,
+      "parent_linked": true
+    },
+    "3": {
+      "number": 20,
+      "url": "https://github.com/fletcherlau/candela/issues/20",
+      "title": "T03: 同步取消与服务重启后自动恢复",
+      "body_sha256": "b4755cec572026fa8346b2447e589fe949d3d83a0e485ffef6e6ecba93439ae8",
+      "database_id": 5401635393,
+      "verified": true,
+      "parent_linked": true
+    },
+    "4": {
+      "number": 21,
+      "url": "https://github.com/fletcherlau/candela/issues/21",
+      "title": "T04: ETF 批量同步、失败重试与旧入口兼容",
+      "body_sha256": "0dcd8b1b8560df884d098cddb8a962b830fdc3580ecbe5db95b15e7b6d902fe0",
+      "database_id": 5401636382,
+      "verified": true,
+      "parent_linked": true
+    },
+    "5": {
+      "number": 22,
+      "url": "https://github.com/fletcherlau/candela/issues/22",
+      "title": "T05: 申万字典、成分与指数日线统一维护",
+      "body_sha256": "253011a04bbf4bb9e81d61146a527b1dc7c7c03e97658eba8778f48cc92aca92",
+      "database_id": 5401637617,
+      "verified": true,
+      "parent_linked": true
+    },
+    "6": {
+      "number": 23,
+      "url": "https://github.com/fletcherlau/candela/issues/23",
+      "title": "T06: ETF 接入、启停与策略候选隔离",
+      "body_sha256": "9008a54581502bf6ea3c08e44aa8085c1e6b40623e4efe0c5db488fcc63bb254",
+      "database_id": 5401638946,
+      "verified": true,
+      "parent_linked": true
+    },
+    "7": {
+      "number": 24,
+      "url": "https://github.com/fletcherlau/candela/issues/24",
+      "title": "T07: 中证全指日周月 K 线与 MACD 展示",
+      "body_sha256": "785aecafebf63bd451ff8052ff989c9b0a0fb9c7b08c674ab1d887e8b6ca6bc3",
+      "database_id": 5401640267,
+      "verified": true,
+      "parent_linked": true
+    },
+    "8": {
+      "number": 25,
+      "url": "https://github.com/fletcherlau/candela/issues/25",
+      "title": "T08: 正式与暂算月度状态、策略提示和缺数保护",
+      "body_sha256": "f89a4594bf74ae5621eade9e198b0a500761eafb28dcad159504ec2fa0908b32",
+      "database_id": 5401641893,
+      "verified": true,
+      "parent_linked": true
+    },
+    "9": {
+      "number": 26,
+      "url": "https://github.com/fletcherlau/candela/issues/26",
+      "title": "T09: 指定区间历史重同步与修正结果整体发布",
+      "body_sha256": "dc606aea78ce8e1f24bb029b585ccb7359b2024797fd1a0a91b6db6d7b1618a7",
+      "database_id": 5401642781,
+      "verified": true,
+      "parent_linked": true
+    },
+    "10": {
+      "number": 27,
+      "url": "https://github.com/fletcherlau/candela/issues/27",
+      "title": "T10: 每日自动更新与首版部署验收",
+      "body_sha256": "89fb801d9e5feabff07086b9b7f912076db3eec706d93749490e9c6e4246e1cf",
+      "database_id": 5401643972,
+      "verified": true,
+      "parent_linked": true
+    }
+  },
+  "relations": [
+    {
+      "child": 19,
+      "blocked_by": 18
+    },
+    {
+      "child": 20,
+      "blocked_by": 19
+    },
+    {
+      "child": 21,
+      "blocked_by": 20
+    },
+    {
+      "child": 22,
+      "blocked_by": 21
+    },
+    {
+      "child": 23,
+      "blocked_by": 21
+    },
+    {
+      "child": 24,
+      "blocked_by": 19
+    },
+    {
+      "child": 25,
+      "blocked_by": 24
+    },
+    {
+      "child": 26,
+      "blocked_by": 22
+    },
+    {
+      "child": 26,
+      "blocked_by": 25
+    },
+    {
+      "child": 27,
+      "blocked_by": 23
+    },
+    {
+      "child": 27,
+      "blocked_by": 26
+    }
+  ],
+  "parent_content_sha256": "b4711785e2ee7a0516ef07a41f81cb7a10e7ccce5a9f537f2b6edf144b5df86a",
+  "publication_verified": true
+}

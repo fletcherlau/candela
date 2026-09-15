@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+.scratch
+.serena
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+web/candela-web
+logs
