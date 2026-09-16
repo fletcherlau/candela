@@ -13,3 +13,7 @@ Default five-label vocabulary from mattpocock/skills: `needs-triage`, `needs-inf
 ### Domain docs
 
 Single-context layout: one `CONTEXT.md` at the repo root plus `docs/adr/` for architecture decision records. See `docs/agents/domain.md`.
+
+### Visual and interaction design
+
+For visual direction, interaction design, or UI review, read `docs/design/workflow.md` first. When implementing UI, follow `docs/design/DESIGN.md` if it exists.
