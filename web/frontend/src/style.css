@@ -67,3 +67,6 @@
 .sync-progress::-moz-progress-bar {
   background: var(--primary);
 }
+
+.rotation-chart { touch-action: pan-y; }
+input[type="range"], input[type="checkbox"] { accent-color: #3c694c; }

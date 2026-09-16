@@ -111,7 +111,7 @@ func (s *MySQLStore) UpsertDaily(ctx context.Context, bars []core.Bar) (int, err
 		pre_close=VALUES(pre_close), change_amt=VALUES(change_amt), pct_chg=VALUES(pct_chg),
 		vol=VALUES(vol), amount=VALUES(amount)`)
 
-	if _, err := s.db.ExecContext(ctx, sb.String(), args...); err != nil {
+	if err := s.writeETF(ctx, sb.String(), args...); err != nil {
 		return 0, err
 	}
 	return len(bars), nil
@@ -135,7 +135,7 @@ func (s *MySQLStore) UpsertAdjFactors(ctx context.Context, factors []core.AdjFac
 	}
 	sb.WriteString(` ON DUPLICATE KEY UPDATE adj_factor=VALUES(adj_factor)`)
 
-	if _, err := s.db.ExecContext(ctx, sb.String(), args...); err != nil {
+	if err := s.writeETF(ctx, sb.String(), args...); err != nil {
 		return 0, err
 	}
 	return len(factors), nil
@@ -238,4 +238,32 @@ func (s *MySQLStore) IntradaySnapshots(ctx context.Context, tsCodes []string, tr
 		out = append(out, snap)
 	}
 	return out, rows.Err()
+}
+
+// Raw data and its publication revision change atomically, including historical corrections.
+func (s *MySQLStore) writeETF(ctx context.Context, query string, args ...interface{}) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
+		return err
+	}
+	relevant := false
+	for _, a := range args {
+		if code, ok := a.(string); ok {
+			for _, c := range core.RotationCodes {
+				if c == code {
+					relevant = true
+				}
+			}
+		}
+	}
+	if relevant {
+		if _, err = tx.ExecContext(ctx, "UPDATE rotation_result SET revision=revision+1,status=IF(status='syncing','syncing','pending'),message='行情已修改，等待完整重算' WHERE id=1"); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

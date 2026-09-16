@@ -16,6 +16,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
+import { Rotation } from "@/pages/rotation";
 import { DataManagement } from "@/pages/data-management";
 
 function Brand() {
@@ -55,6 +56,24 @@ function Header() {
                     <span className="font-medium">市场状态</span>
                     <span className="text-xs text-muted-foreground">
                       观察全市场走势与市场环境
+                    </span>
+                  </a>
+                </NavigationMenuLink>
+                <NavigationMenuLink
+                  asChild
+                  active={location.pathname === "/strategies/four-etf-rotation"}
+                >
+                  <a
+                    href="/strategies/four-etf-rotation"
+                    aria-current={
+                      location.pathname === "/strategies/four-etf-rotation"
+                        ? "page"
+                        : undefined
+                    }
+                  >
+                    <span className="font-medium">四标的轮动</span>
+                    <span className="text-xs text-muted-foreground">
+                      查看收益、回撤与持仓变化
                     </span>
                   </a>
                 </NavigationMenuLink>
@@ -222,7 +241,13 @@ export function App() {
             tabIndex={-1}
             className="mx-auto w-full max-w-6xl flex-1 px-6 sm:px-8"
           >
-            {location.pathname === "/market" ? <Market /> : <Home />}
+            {location.pathname === "/market" ? (
+              <Market />
+            ) : location.pathname === "/strategies/four-etf-rotation" ? (
+              <Rotation />
+            ) : (
+              <Home />
+            )}
           </main>
           <footer className="border-t">
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs text-muted-foreground sm:px-8">

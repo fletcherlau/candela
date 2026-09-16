@@ -95,6 +95,8 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/etf-rotation/dca-dashboard/":
 		http.Redirect(w, r, "/etf-rotation/dca-dashboard/index.html", http.StatusFound)
+	case "/api/rotation/backtest":
+		a.rotationBacktest(w, r)
 	case "/api/catalog":
 		a.catalog(w, r)
 	case "/api/session":
@@ -111,7 +113,7 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/data", http.StatusFound)
 	case "/research":
 		http.Redirect(w, r, "/", http.StatusFound)
-	case "/", "/market", "/admin", "/admin/data":
+	case "/", "/market", "/admin", "/admin/data", "/strategies/four-etf-rotation":
 		a.file(w, r, a.cfg.Static, "index.html")
 	default:
 		if strings.HasPrefix(r.URL.Path, "/assets/") && fs.ValidPath(strings.TrimPrefix(r.URL.Path, "/")) {
@@ -192,5 +194,38 @@ func (a *application) catalog(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(payload)
+	}
+}
+
+func (a *application) rotationBacktest(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.cfg.SyncerURL+"/api/v1/rotation/backtest", nil)
+	if err != nil {
+		http.Error(w, "回测服务暂不可用", 502)
+		return
+	}
+	req.Header.Set("X-Api-Key", a.cfg.APIKey)
+	res, err := a.client.Do(req)
+	if err != nil {
+		http.Error(w, "回测服务暂不可用", 502)
+		return
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		http.Error(w, "回测服务暂不可用", 502)
+		return
+	}
+	payload, err := io.ReadAll(io.LimitReader(res.Body, 16<<20))
+	var decoded struct {
+		Status string `json:"status"`
+	}
+	if err != nil || json.Unmarshal(payload, &decoded) != nil || decoded.Status == "" {
+		http.Error(w, "回测结果暂不可用", 502)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if r.Method != http.MethodHead {
+		w.Write(payload)
 	}
 }
