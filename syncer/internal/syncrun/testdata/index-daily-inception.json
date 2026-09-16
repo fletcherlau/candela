@@ -1,0 +1,37 @@
+{
+  "code": 0,
+  "data": {
+    "fields": [
+      "ts_code",
+      "trade_date",
+      "open",
+      "high",
+      "low",
+      "close",
+      "pre_close",
+      "change",
+      "pct_chg",
+      "vol",
+      "amount"
+    ],
+    "items": [
+      [
+        "000985.CSI",
+        "20041231",
+        1000.0,
+        1000.0,
+        1000.0,
+        1000.0,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    ],
+    "has_more": false,
+    "count": 0
+  },
+  "msg": "",
+  "detail": "..."
+}

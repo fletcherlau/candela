@@ -50,3 +50,20 @@
     @apply outline-2 outline-offset-4 outline-ring;
   }
 }
+
+.sync-progress {
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-muted);
+}
+.sync-progress::-webkit-progress-bar {
+  background: var(--color-muted);
+}
+.sync-progress::-webkit-progress-value {
+  background: var(--primary);
+}
+.sync-progress::-moz-progress-bar {
+  background: var(--primary);
+}

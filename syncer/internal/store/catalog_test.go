@@ -31,7 +31,7 @@ func TestCatalogReportsStoredCoverageAndEmptyDatasets(t *testing.T) {
 	if err := schema.Ensure(ctx, db); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"instrument", "etf_daily", "etf_adj_factor", "sw_industry", "sw_index_daily", "sw_industry_member"} {
+	for _, table := range []string{"index_daily", "instrument", "etf_daily", "etf_adj_factor", "sw_industry", "sw_index_daily", "sw_industry_member"} {
 		if _, err := db.Exec("DELETE FROM " + table); err != nil {
 			t.Fatal(err)
 		}
@@ -50,7 +50,7 @@ func TestCatalogReportsStoredCoverageAndEmptyDatasets(t *testing.T) {
 	if len(result.Groups) != 3 {
 		t.Fatalf("groups: %+v", result)
 	}
-	if result.Groups[0].Items[0].Status != "not_connected" {
+	if result.Groups[0].Items[0].Status != "no_data" {
 		t.Fatal("CSI must not pretend to have data")
 	}
 	etfs := result.Groups[1].Items

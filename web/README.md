@@ -1,6 +1,6 @@
-# Candela 网站（#18）
+# Candela 网站
 
-独立 Go 服务提供受 Access 保护的网页与只读数据目录。浏览器仅访问本站，网站只调用 syncer 的目录接口，不连接 MySQL。前端使用 React / TypeScript / Vite、Tailwind CSS v4 和 shadcn/ui；本任务不引入图表、同步操作或新数据采集。
+独立 Go 服务提供受 Access 保护的网页、数据目录与中证全指后台同步操作。浏览器仅访问本站，网站通过内部密钥调用 syncer，不连接 MySQL。前端使用 React / TypeScript / Vite、Tailwind CSS v4 和 shadcn/ui；市场图表与状态分析由后续任务实现。
 
 ## 配置与运行
 
@@ -28,11 +28,12 @@ docker compose -f deployments/compose.yaml --env-file .env --profile web up -d -
 
 - `GET /api/catalog`：网站经服务端内部密钥调用 `GET /api/v1/data/catalog`。目录查询只读，不触发同步；失败详情不包含内部错误或凭据。
 - 每个分类单独表示读取失败，保留其他成功分类。ETF 日线、因子各自统计最早／最晚日期和记录数，包括停用对象。申万日线独立统计；字典与成分是参考数据，不伪造行情日期。
-- 中证全指尚未接入是 #18 的明确状态，接入交给 #19。“已有数据”不等于已更新至今天；刷新只重新查询覆盖。
-- `GET /api/session`：生成 Secure、HttpOnly、SameSite=Strict 的 CSRF Cookie，返回配对令牌。未来写操作必须同时携带本站 Origin、Cookie 和 X-CSRF-Token；当前所有写操作即便验证通过也返回 405。
+- 中证全指独立统计 `index_daily` 的覆盖日期和记录数，尚未同步时显示“暂无数据”。“已有数据”不等于已更新至今天；刷新只重新查询覆盖。
+- `GET /api/session`：生成 Secure、HttpOnly、SameSite=Strict 的 CSRF Cookie，返回配对令牌。提交同步任务必须同时携带本站 Origin、Cookie 和 X-CSRF-Token；仅允许白名单路径与模式，其他写操作返回 405。
+- `POST /api/sync-runs` 提交历史回填／增量任务；`GET /api/sync-runs` 读取列表，`GET /api/sync-runs/<id>` 读取详情。见 [T02 验收与迁移说明](../docs/deployments/t02-sync-runs.md)。
 - `/` 为品牌首页，顶栏仅含 Logo 与“策略 → 市场状态”；`/market` 为市场状态。`/admin` 与 `/admin/data` 为独立数据管理页面，前台无后台入口。旧 `/data` 跳转至 `/admin/data`，`/research` 跳转至首页；研究档案和版本对照不再进入产品导航。原研究静态文件仅保留旧链接兼容。
 - 基础控件从 shadcn/ui 官方 registry 引入，源码归仓库维护（`src/components/ui`）；通过 `components.json` 添加组件，业务页面放在 `src/pages`。样式令牌集中在 `src/style.css`，沿用 Candela 配色。
-- 所有页面、资源与 API 都验证 Access 的签名、issuer、audience、有效期和 nbf；内部目录转发不接受客户端自定义目的地址，也不转发 Access 凭据。
+- 所有页面、资源与 API 都验证 Access 的签名、issuer、audience、有效期和 nbf；内部转发不接受客户端自定义目的地址，也不转发 Access 凭据。
 
 ## 验证
 
