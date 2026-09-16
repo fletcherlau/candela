@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Candela · 四 ETF 轮动设计参考板</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f4f2; color: #202622; font: 15px/1.7 system-ui, "Microsoft YaHei", sans-serif; }
+    main { max-width: 1500px; margin: auto; padding: 44px 32px 64px; }
+    .eyebrow { color: #59645d; font-size: 12px; letter-spacing: .12em; }
+    h1 { margin: 10px 0; font-size: clamp(26px, 3vw, 38px); line-height: 1.3; }
+    h2 { font-size: 21px; margin: 0 0 10px; }
+    h3 { font-size: 17px; margin: 0 0 8px; }
+    p { margin: 0 0 14px; }
+    a { color: #285b49; text-underline-offset: 4px; }
+    a:focus-visible, summary:focus-visible { outline: 3px solid #285b49; outline-offset: 4px; }
+    header { max-width: 850px; margin-bottom: 30px; }
+    .status { display: inline-block; border: 1px solid #d4dbd5; border-radius: 30px; padding: 3px 12px; font-size: 12px; margin: 10px 0 0; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+    article { background: white; border: 1px solid #dfe3df; border-radius: 12px; overflow: hidden; }
+    .image-link { display: block; background: #e9ece9; border-bottom: 1px solid #dfe3df; }
+    .image-link img { display: block; width: 100%; height: 285px; object-fit: contain; }
+    .body { padding: 24px; }
+    .num { color: #6b776f; font-size: 12px; margin-bottom: 8px; }
+    .label { display: block; font-size: 12px; font-weight: 650; color: #667269; margin-top: 16px; }
+    .body p { font-size: 14px; }
+    .source { font-size: 12px; }
+    .recommendation { margin: 26px 0; padding: 24px 28px; border-left: 4px solid #38674f; background: #e8eee8; }
+    .principles { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 30px; }
+    ol { padding-left: 22px; margin: 0; }
+    li { margin-bottom: 10px; }
+    details { padding: 20px; border: 1px solid #dfe3df; background: white; border-radius: 10px; }
+    summary { cursor: pointer; font-weight: 650; }
+    details img { max-width: 100%; margin-top: 18px; }
+    footer { margin-top: 30px; color: #6b776f; font-size: 12px; }
+    @media (max-width: 950px) { .grid, .principles { grid-template-columns: 1fr; } .image-link img { height: 340px; } main { padding: 28px 20px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">CANDELA / DESIGN RESEARCH / 2026-09-16</div>
+      <h1>四 ETF 动量轮动 · 设计参考板</h1>
+      <p>把已有策略实验转成公众可以理解和持续使用的功能页。先比较信息组织与阅读方式，再用同一份内容探索三种视觉方向。</p>
+      <span class="status">阶段 1–2 · 参考与简报已整理 · 视觉方向待选</span>
+    </header>
+    <section class="grid" aria-label="三组视觉参考">
+      <article>
+        <a class="image-link" href="composer-backtest.png" target="_blank" rel="noopener" aria-label="查看 Composer 参考大图"><img src="composer-backtest.png" alt="Composer 官方页面展示策略曲线和历史资产配置色带"></a>
+        <div class="body">
+          <div class="num">01 / 内容组织</div><h2>Composer</h2>
+          <p>把策略表现和持仓变化放在一起理解。</p>
+          <span class="label">值得借鉴</span><p>主曲线、时间范围和历史配置色带，让用户能追问“这一段为什么变化”。</p>
+          <span class="label">应用到 Candela</span><p>净值、持仓区间与回撤联动；同一日期展示对应标的和仓位。</p>
+          <span class="label">需要取舍</span><p>保留结构，评估深色图表的阅读负担。本轮不引入策略编辑与交易执行。</p>
+          <a class="source" href="https://www.composer.trade/" target="_blank" rel="noopener">来源：官方产品页 ↗</a>
+        </div>
+      </article>
+      <article>
+        <a class="image-link" href="koyfin-portfolio.png" target="_blank" rel="noopener" aria-label="查看 Koyfin 参考大图"><img src="koyfin-portfolio.png" alt="Koyfin 官方帮助页展示紧凑摘要和组合数据表格"></a>
+        <div class="body">
+          <div class="num">02 / 数据密度</div><h2>Koyfin</h2>
+          <p>用整齐的数据排列支持快速比较。</p>
+          <span class="label">值得借鉴</span><p>摘要集中、列对齐、视图切换明确，适合重复查看。</p>
+          <span class="label">应用到 Candela</span><p>四标的与历史指标统一精度和单位，避免把每个数字拆成一张大卡片。</p>
+          <span class="label">需要取舍</span><p>降低导航复杂度，为术语保留解释。只有四个标的，无需全市场终端的密度。</p>
+          <a class="source" href="https://www.koyfin.com/help/my-portfolios/" target="_blank" rel="noopener">来源：官方帮助页 ↗</a>
+        </div>
+      </article>
+      <article>
+        <a class="image-link" href="curvo-evolution.png" target="_blank" rel="noopener" aria-label="查看 Curvo 参考大图"><img src="curvo-evolution.png" alt="Curvo 公开组合详情页的大幅历史曲线和章节导航"></a>
+        <div class="body">
+          <div class="num">03 / 阅读体验</div><h2>Curvo</h2>
+          <p>让首次访问者顺着图表读懂策略。</p>
+          <span class="label">值得借鉴</span><p>清楚的章节、大幅曲线、克制的网格，以及靠近指标的解释。</p>
+          <span class="label">应用到 Candela</span><p>依次组织历史表现、持仓变化、回撤和规则；保持重点清楚、详情可展开。</p>
+          <span class="label">需要取舍</span><p>控制留白和页面长度，保留快速定位；强调色重新按 Candela 的方向设计。</p>
+          <a class="source" href="https://curvo.eu/backtest/en" target="_blank" rel="noopener">来源：公开组合示例 ↗</a>
+        </div>
+      </article>
+    </section>
+    <aside class="recommendation">
+      <h3>推荐先探索：清晰的研究阅读页</h3>
+      <p>借鉴 Curvo 的阅读层级、Composer 的策略组织，以及 Koyfin 的数值排版。三版候选应使用完全相同的数据与功能，分别探索「清晰研究页」「紧凑策略工作台」「策略解读页」。</p>
+      <p>这里是参考材料与探索建议，尚未生成新页面方案，也尚未选定视觉方向。</p>
+    </aside>
+    <section class="principles">
+      <div>
+        <h2>本轮共同原则</h2>
+        <ol>
+          <li>先看懂策略，再深入指标。</li>
+          <li>收益与风险相邻，持仓变化解释曲线。</li>
+          <li>历史回测、定投模拟与每日信号明确分开。</li>
+          <li>资产身份色固定，状态同时用文字表达。</li>
+          <li>数字便于比较，单位、精度与日期清楚。</li>
+        </ol>
+      </div>
+      <details>
+        <summary>查看原实验页面与需要调整的层级</summary>
+        <p>保留资金曲线、持仓区间和回撤。把密集的版本与公式说明移到可展开详情，旧版对照成为可选内容，首屏优先帮助用户理解策略和历史表现。</p>
+        <a href="existing-experiment.png" target="_blank" rel="noopener"><img src="existing-experiment.png" alt="Candela 原有定投账户模拟实验页面完整截图"></a>
+        <p>原页数据来自历史模拟，不是实际账户或当前市场数据。</p>
+      </details>
+    </section>
+    <footer>参考截图仅作设计研究。Koyfin 与 Composer 为官方展示界面，Curvo 为公开示例实屏。<a href="README.md">完整观察笔记</a> · <a href="https://github.com/fletcherlau/candela/issues/31">设计简报 #31</a></footer>
+  </main>
+</body>
+</html>
