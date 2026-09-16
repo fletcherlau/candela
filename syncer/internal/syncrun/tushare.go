@@ -48,7 +48,8 @@ func (s *TushareSource) query(ctx context.Context, api string, params map[string
 		return nil, failure("source_invalid", "数据源返回缺少数据结构。")
 	}
 	// A success response without the requested shape must never look like an empty
-	// pre-inception interval. Reject null cells instead of silently storing zeros.
+	// pre-inception interval. Only source-optional daily metrics may be null;
+	// Bar pointers preserve those nulls without silently storing zeros.
 	fieldsSeen := map[string]bool{}
 	for _, f := range resp.Data.Fields {
 		fieldsSeen[f] = true
@@ -62,14 +63,23 @@ func (s *TushareSource) query(ctx context.Context, api string, params map[string
 		if len(row) != len(resp.Data.Fields) {
 			return nil, failure("source_invalid", "数据源返回记录不完整。")
 		}
-		for _, v := range row {
-			if v == nil {
-				return nil, failure("source_invalid", "数据源记录存在缺失值。")
+		for i, v := range row {
+			field := resp.Data.Fields[i]
+			if v == nil && !(api == "index_daily" && nullableDailyField(field)) {
+				return nil, failure("source_invalid", fmt.Sprintf("数据源记录存在缺失值（%s.%s）。", api, field))
 			}
 		}
 	}
 	return resp, nil
 }
+func nullableDailyField(field string) bool {
+	switch field {
+	case "pre_close", "change", "pct_chg", "vol", "amount":
+		return true
+	}
+	return false
+}
+
 func (s *TushareSource) daily(ctx context.Context, from, to string) ([]Bar, bool, error) {
 	params := map[string]interface{}{"ts_code": Code, "end_date": to}
 	if from != "" {
@@ -86,7 +96,7 @@ func (s *TushareSource) daily(ctx context.Context, from, to string) ([]Bar, bool
 	seen := map[string]bool{}
 	for _, b := range bars {
 		_, err := time.Parse("20060102", b.Date)
-		if err != nil || b.Code != Code || b.Date < HistoryFloor || b.Date < from || b.Date > to || seen[b.Date] || b.Close <= 0 || b.Open <= 0 || b.High < b.Low || b.Volume < 0 || b.Amount < 0 {
+		if err != nil || b.Code != Code || b.Date < HistoryFloor || b.Date < from || b.Date > to || seen[b.Date] || b.Close <= 0 || b.Open <= 0 || b.High < b.Low || (b.Volume != nil && *b.Volume < 0) || (b.Amount != nil && *b.Amount < 0) {
 			return nil, false, failure("source_invalid", "指数行情包含异常日期、重复记录或无效数值。")
 		}
 		seen[b.Date] = true

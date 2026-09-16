@@ -36,6 +36,15 @@ var migrations = [][]string{{
  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
  KEY object_queue(ts_code,state,sequence), FOREIGN KEY(ts_code) REFERENCES index_series(ts_code)
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+}, {
+	// Version 1 is already deployed. Widen only source-optional metrics, preserving
+	// existing values; repeated ALTER is safe after interrupted migration startup.
+	`ALTER TABLE index_daily
+ MODIFY pre_close DECIMAL(16,4) NULL,
+ MODIFY change_amt DECIMAL(16,4) NULL,
+ MODIFY pct_chg DECIMAL(16,4) NULL,
+ MODIFY vol DECIMAL(24,4) NULL,
+ MODIFY amount DECIMAL(24,4) NULL`,
 }}
 
 func migrate(ctx context.Context, db *sql.DB) error {

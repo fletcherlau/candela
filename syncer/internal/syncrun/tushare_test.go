@@ -30,13 +30,15 @@ type sourceFixture struct {
 	hook           func(string, string)
 }
 
+func number(value float64) *float64 { return &value }
+
 func fixtureBars(start, end string) []Bar {
 	var bars []Bar
 	for d := date(start); !d.After(date(end)); d = d.AddDate(0, 0, 1) {
 		if d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
 			continue
 		}
-		bars = append(bars, Bar{Code: Code, Date: d.Format("20060102"), Open: 100, Close: 101, High: 102, Low: 99, PreClose: 100, Change: 1, PctChange: 1, Volume: 1000, Amount: 10000})
+		bars = append(bars, Bar{Code: Code, Date: d.Format("20060102"), Open: 100, Close: 101, High: 102, Low: 99, PreClose: number(100), Change: number(1), PctChange: number(1), Volume: number(1000), Amount: number(10000)})
 	}
 	return bars
 }

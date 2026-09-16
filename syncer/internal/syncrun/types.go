@@ -37,17 +37,19 @@ type Run struct {
 }
 
 type Bar struct {
-	Code      string  `json:"ts_code"`
-	Date      string  `json:"trade_date"`
-	Open      float64 `json:"open"`
-	High      float64 `json:"high"`
-	Low       float64 `json:"low"`
-	Close     float64 `json:"close"`
-	PreClose  float64 `json:"pre_close"`
-	Change    float64 `json:"change"`
-	PctChange float64 `json:"pct_chg"`
-	Volume    float64 `json:"vol"`
-	Amount    float64 `json:"amount"`
+	Code  string  `json:"ts_code"`
+	Date  string  `json:"trade_date"`
+	Open  float64 `json:"open"`
+	High  float64 `json:"high"`
+	Low   float64 `json:"low"`
+	Close float64 `json:"close"`
+	// Source inception records can omit previous-session metrics and turnover.
+	// Preserve their absence through decoding and SQL; never manufacture zeros.
+	PreClose  *float64 `json:"pre_close"`
+	Change    *float64 `json:"change"`
+	PctChange *float64 `json:"pct_chg"`
+	Volume    *float64 `json:"vol"`
+	Amount    *float64 `json:"amount"`
 }
 
 type Source interface {

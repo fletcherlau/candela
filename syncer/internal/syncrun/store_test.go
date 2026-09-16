@@ -74,7 +74,7 @@ func TestMySQLFullBackfillAndIncremental(t *testing.T) {
 	check(t, err)
 	// Replay preserves accepted work and doesn't seed an ETF Instrument.
 	check(t, schema.Ensure(ctx, db))
-	if count(t, db, "schema_migration") != 1 {
+	if count(t, db, "schema_migration") != 2 {
 		t.Fatal("migration not versioned")
 	}
 	claimed, err := st.Claim(ctx)
@@ -276,4 +276,48 @@ func TestMySQLIncrementalDedupKeepsOriginalStartAsCoverageAdvances(t *testing.T)
 		t.Fatalf("moving request boundary %+v", again)
 	}
 	check(t, st.Finish(ctx, r, "", "done"))
+}
+
+func TestMySQLInceptionNullsAndMigrationFromVersionOne(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	st := NewStore(db)
+	// Restore the deployed v1 column constraints and seed a non-null existing row.
+	_, err := db.Exec(`ALTER TABLE index_daily MODIFY pre_close DECIMAL(16,4) NOT NULL, MODIFY change_amt DECIMAL(16,4) NOT NULL, MODIFY pct_chg DECIMAL(16,4) NOT NULL, MODIFY vol DECIMAL(24,4) NOT NULL, MODIFY amount DECIMAL(24,4) NOT NULL`)
+	check(t, err)
+	_, err = db.Exec("DELETE FROM schema_migration WHERE version=2")
+	check(t, err)
+	_, err = db.Exec("INSERT INTO index_daily(ts_code,trade_date,open,high,low,close,pre_close,change_amt,pct_chg,vol,amount) VALUES (?,'20041231',1000,1000,1000,1000,999,1,0.1,50,500)", Code)
+	check(t, err)
+	check(t, schema.Ensure(ctx, db))
+	var before float64
+	check(t, db.QueryRow("SELECT vol FROM index_daily WHERE trade_date='20041231'").Scan(&before))
+	if before != 50 {
+		t.Fatal("migration changed existing value")
+	}
+	// Simulate ALTER committed but migration version was not yet recorded.
+	_, err = db.Exec("DELETE FROM schema_migration WHERE version=2")
+	check(t, err)
+	check(t, schema.Ensure(ctx, db))
+	accepted, _, err := st.Submit(ctx, "backfill", at("20041231"))
+	check(t, err)
+	r, err := st.Claim(ctx)
+	check(t, err)
+	(&Worker{st, inceptionSource(t)}).Execute(ctx, r)
+	saved, err := st.Get(ctx, accepted.ID)
+	check(t, err)
+	if saved.State != "succeeded" || saved.ProcessedRows != 1 || saved.EffectiveStart != "20041231" {
+		t.Fatalf("inception backfill failed: %+v", saved)
+	}
+	var price float64
+	var prev, change, pct, vol, amount sql.NullFloat64
+	check(t, db.QueryRow("SELECT close,pre_close,change_amt,pct_chg,vol,amount FROM index_daily WHERE ts_code=? AND trade_date='20041231'", Code).Scan(&price, &prev, &change, &pct, &vol, &amount))
+	if price != 1000 || prev.Valid || change.Valid || pct.Valid || vol.Valid || amount.Valid {
+		t.Fatal("source nulls were lost during upsert")
+	}
+	var required int
+	check(t, db.QueryRow("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='index_daily' AND column_name IN ('open','high','low','close') AND is_nullable='NO'").Scan(&required))
+	if required != 4 {
+		t.Fatal("required price constraints weakened")
+	}
 }
