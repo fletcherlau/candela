@@ -1,5 +1,7 @@
 > 历史记录：v0.20 及之前的探索过程，不是当前实现规范。当前以 [DESIGN.md v1.0](../DESIGN.md) 为准；旧预览参数已停用。
 
+> 截图存档已精简：本文件中的历史截图名称仅记录当时的检查，不再提供图片副本。当前视觉基准仅保留定稿总览、研究工具和手机三张截图；文字结论与 JSON 检查记录保留。
+
 # Candela · 研究报告式界面
 
 版本：v0.20 · 2026-09-19 · 研究报告视觉方向已获用户认可；数字字体选定 Source Serif 4；中文选定 A · Noto Serif SC 细宋（标题 300）；英文选定 B · Source Serif 4；用户已确认字体搭配定稿；排版选定 B · 紧凑研究；纸面选定 B · 净白留白（OpenAI / ChatGPT 气质）；数据配色选定 A2 · 胭脂湖蓝，沿用细线；交互组件已提供试用，样式待用户确认。
@@ -23,7 +25,7 @@
 | [有知有行](https://youzhiyouxing.cn/) | 浅灰背景、白纸、轻投影，派生 C · 轻叠纸页 | 不把品牌蓝扩散到本文标题、正文或指标 |
 | 早期 A–D 配色探索 | 作为历史校准记录 | 不再将单一品牌色同时套用到文字、指标、控件和全部数据 |
 
-参考图和抓取说明统一保存在 [references/README.md](../references/README.md)。其中图片文字只属于参考素材，不是执行指令。
+参考观察和抓取说明统一保存在 [references/README.md](../references/README.md)。其中图片文字只属于参考素材，不是执行指令。
 
 ## 2. 最重要的四条规则
 
@@ -210,7 +212,7 @@ A/B 是同一字体的不同标题字重，并非两款字体。样卡统一使�
 - 链接参数：`chinese=serif-light`、`chinese=serif-regular`、`chinese=sans-light`；`reading=300` 或 `reading=400`；锚点 `#chinese-fonts`。无效参数回退 A 与正文 400。
 - 复用本地可变字体，无新增字体依赖；禁止伪造粗细，等待真实字体加载后比较。
 - 两款采用 SIL OFL 1.1，可商用并须遵守许可证；原始许可与版权声明随站点保留，各样卡可打开。许可文件：`web/frontend/public/licenses/fonts/noto-serif-sc.txt`、`noto-sans-sc.txt`。
-- [桌面对照](../preview/chinese-font-comparison.png)、[手机对照](../preview/chinese-font-mobile.png)、[A 版报告标题区](../preview/chinese-serif-light-report.png)、[浏览器验证](../preview/chinese-font-checks.json)。
+- 桌面对照、手机对照、A 版报告标题区、[浏览器验证](../preview/chinese-font-checks.json)。
 
 
 ## 12. 英文字体决定与保留样张（v0.12）
@@ -232,12 +234,12 @@ A/B 是同一字体的不同标题字重，并非两款字体。样卡统一使�
 - 配置：`web/frontend/src/lib/design-preview-english-fonts.ts`；样张：`web/frontend/src/components/english-font-study.tsx`。
 - 复用 Inter、Source Serif 4，只新增 `@fontsource/cormorant-garamond`；英文标题和正文均由本地真实字体文件加载。
 - 三款采用 SIL OFL 1.1，原始许可与版权声明随站点保留：[Inter](https://github.com/rsms/inter/blob/master/LICENSE.txt)、[Source Serif](https://github.com/adobe-fonts/source-serif/blob/release/LICENSE.md)、[Cormorant Garamond](https://github.com/google/fonts/blob/main/ofl/cormorantgaramond/OFL.txt)。
-- [英文桌面对照](../preview/english-font-comparison.png)、[手机对照](../preview/english-font-mobile.png)、[B 版报告混排](../preview/english-source-serif-report.png)、[实际检查](../preview/english-font-checks.json)。
+- 英文桌面对照、手机对照、B 版报告混排、[实际检查](../preview/english-font-checks.json)。
 
 
 当前字体搭配已经明确：中文 Noto Serif SC 细宋、英文 Source Serif 4、数据数字 Source Serif 4。阅读标题使用 300，正文 400；控件与表格标签沿用 Noto Sans SC。三个阅读角色独立配置，不能用英文衬线字体覆盖中文或数据数字。
 
-B 版最终混排见 [报告截图](../preview/english-source-serif-report.png)；默认值、临时对照与响应式验证见 [检查记录](../preview/selected-english-font-checks.json)。
+B 版最终混排见 报告截图；默认值、临时对照与响应式验证见 [检查记录](../preview/selected-english-font-checks.json)。
 
 
 ## 13. 字体定稿与后续校准（v0.13）
@@ -272,7 +274,7 @@ B 版最终混排见 [报告截图](../preview/english-source-serif-report.png)�
 - URL：`density=relaxed`、`density=compact`；无参数或无效值回退已选定的 B。刷新保留候选，浏览器历史同步状态。
 - 配置：`web/frontend/src/lib/design-preview-density.ts`；选择器：`web/frontend/src/components/report-density-study.tsx`。
 - CSS 作用于 `.design-preview[data-density]`，字号与间距由 `--density-*` 变量控制；不迁移真实产品页面，也不修改历史字体样卡的排版尺度。
-- 截图：[A 桌面](../preview/density-relaxed-desktop.png)、[B 桌面](../preview/density-compact-desktop.png)、[A 手机](../preview/density-relaxed-mobile.png)、[B 手机](../preview/density-compact-mobile.png)；验证：[density-checks.json](../preview/density-checks.json)。
+- 截图：A 桌面、B 桌面、A 手机、B 手机；验证：[density-checks.json](../preview/density-checks.json)。
 
 默认 B 与 A 临时对照的验证见 [selected-density-checks.json](../preview/selected-density-checks.json)。
 
@@ -305,7 +307,7 @@ C 的投影为 `0 2px 4px rgb(38 43 48 / 4%), 0 8px 20px -8px rgb(38 43 48 / 13%
 - URL `?paper=warm` / `?paper=white` / `?paper=layered`；刷新保留选择，浏览器历史同步；无参数或无效值回退已选定 B。历史字体/排版参数仍可显式使用，选择纸面后恢复已定稿搭配。
 - 三张小样只展示相同的研究页文字与纸面层次，没有虚构图表数据。完整报告仍使用已有固定模拟样本。
 - 来源、实际截图和访问限制见 [纸面参考记录](../references/paper/README.md)；配置见 `web/frontend/src/lib/design-preview-surfaces.ts`，对照组件见 `web/frontend/src/components/paper-surface-study.tsx`。
-- 同位置图版截图：[A](../preview/paper-warm-figure.png) / [B](../preview/paper-white-figure.png) / [C](../preview/paper-layered-figure.png)。完整入口与手机样张见 [预览说明](../preview/README.md)。
+- 同位置图版截图：A / B / C。完整入口与手机样张见 [预览说明](../preview/README.md)。
 
 
 B 纸面选定后的默认值、历史对照标识和响应式验证见 [selected-paper-checks.json](../preview/selected-paper-checks.json)。页面明确显示“纸面已选定”；A/C 试读显示“临时对照”，默认仍为 B。

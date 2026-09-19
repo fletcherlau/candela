@@ -17,7 +17,7 @@
 
 - `docs/design/workflow.md`：本流程、阶段验收与可复用提示词。
 - `docs/design/DESIGN.md`：已选定的视觉原则、设计变量、组件和图表规范；选定方向后再创建。
-- `docs/design/references/`：参考截图、方案对比和选择理由。记录来源、日期、适用页面，以及方案是候选还是已选定。
+- `docs/design/references/`：参考来源、方案对比和选择理由。记录来源、日期、适用页面，以及方案是候选还是已选定。当前仓库只保留三张定稿验收截图；参考图与探索过程截图不随代码提交。
 - GitHub Issues：每次设计任务的简报、范围、验收条件，以及阶段产出链接。沿用 `docs/agents/issue-tracker.md` 的约定；发布或更新 issue 按当前任务授权执行。
 
 产品范围和领域语义沿用对应 issue、`CONTEXT.md` 与相关 ADR；视觉设计中的示例不自动成为新功能需求。
