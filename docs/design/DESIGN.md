@@ -1,6 +1,177 @@
+---
+version: alpha
+name: Candela Research
+description: 紧凑研究报告、细宋、Source Serif 4、净白纸面、胭脂湖蓝图表；设计基线 v1.0。
+colors:
+  primary: "#242420"
+  secondary: "#69665F"
+  canvas: "#FFFFFF"
+  paper: "#FFFFFF"
+  paper-soft: "#F3F3F3"
+  paper-edge: "#DEDEDE"
+  rule: "#E3E3E3"
+  control-border: "#8B867C"
+  grid: "#DAD6CC"
+  error: "#A33343"
+  primary-hover: "#43423D"
+  rouge: "#C4435B"
+  lake: "#287E9A"
+  gold: "#927A29"
+  violet: "#75629E"
+  pine: "#3E8A72"
+  heatmap-negative-mid: "#8FBAC7"
+  heatmap-zero: "#F5F5F3"
+  heatmap-positive-mid: "#DD9CA7"
+typography:
+  headline-zh:
+    fontFamily: '"Noto Serif SC Variable", "Songti SC", serif'
+    fontSize: 36px
+    fontWeight: 300
+    lineHeight: 1.5
+  headline-zh-mobile:
+    fontFamily: '"Noto Serif SC Variable", "Songti SC", serif'
+    fontSize: 26px
+    fontWeight: 300
+    lineHeight: 1.5
+  headline-en:
+    fontFamily: '"Source Serif 4", serif'
+    fontSize: 30px
+    fontWeight: 300
+    lineHeight: 1.3
+  headline-en-mobile:
+    fontFamily: '"Source Serif 4", serif'
+    fontSize: 25px
+    fontWeight: 300
+    lineHeight: 1.3
+  body-zh:
+    fontFamily: '"Noto Serif SC Variable", "Songti SC", serif'
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.8
+  body-en:
+    fontFamily: '"Source Serif 4", serif'
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.7
+  section:
+    fontFamily: '"Noto Serif SC Variable", "Songti SC", serif'
+    fontSize: 23px
+    fontWeight: 300
+    lineHeight: 1.6
+  figure:
+    fontFamily: '"Noto Serif SC Variable", "Songti SC", serif'
+    fontSize: 21px
+    fontWeight: 300
+    lineHeight: 1.5
+  metric:
+    fontFamily: '"Source Serif 4", "Noto Sans SC Variable", serif'
+    fontSize: 36px
+    fontWeight: 400
+    lineHeight: 1.3
+    fontFeature: '"lnum" 1, "tnum" 1'
+  table-number:
+    fontFamily: '"Source Serif 4", "Noto Sans SC Variable", serif'
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+    fontFeature: '"lnum" 1, "tnum" 1'
+  label:
+    fontFamily: '"Noto Sans SC Variable", "PingFang SC", sans-serif'
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.5
+  input:
+    fontFamily: '"Noto Sans SC Variable", "PingFang SC", sans-serif'
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
+  brand:
+    fontFamily: '"Alegreya", Georgia, serif'
+    fontSize: 42px
+    fontWeight: 500
+    lineHeight: 1
+rounded:
+  control: 4px
+  small: 3px
+  paper: 12px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  shell: 1280px
+  reading: 780px
+  aside: 190px
+  column-gap: 40px
+  page-desktop: 48px
+  page-mobile: 20px
+  card-desktop: 20px
+  card-mobile: 16px
+  section-desktop: 44px
+  section-mobile: 32px
+  table-y: 10px
+  control-height: 44px
+  focus-width: 2px
+  focus-offset: 4px
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.paper}"
+    typography: "{typography.label}"
+    rounded: "{rounded.control}"
+    height: "{spacing.control-height}"
+  button-primary-hover:
+    backgroundColor: "{colors.primary-hover}"
+    textColor: "{colors.paper}"
+  button-outline:
+    textColor: "{colors.primary}"
+    rounded: "{rounded.control}"
+    height: "{spacing.control-height}"
+  button-secondary:
+    backgroundColor: "{colors.paper-soft}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.control}"
+    height: "{spacing.control-height}"
+  input:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.primary}"
+    typography: "{typography.input}"
+    rounded: "{rounded.control}"
+    height: "{spacing.control-height}"
+  card:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.paper}"
+    padding: "{spacing.card-desktop}"
+  dialog:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.paper}"
+    padding: 30px
+  checkbox:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.small}"
+    size: 18px
+  checkbox-checked:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.paper}"
+  chart-primary:
+    width: 1.6px
+    height: 300px
+  chart-comparison:
+    width: 1.2px
+  icon:
+    size: 24px
+    width: 1.5px
+---
+
 # Candela · 研究报告式界面
 
-版本：**v1.0 · 2026-09-19 · 用户已确认定稿**
+视觉基线：**v1.0 · 2026-09-19 · 用户已确认定稿**
+
+文档格式：Google DESIGN.md `alpha`，使用 `@google/design.md` 0.4.0 校验。YAML 是可执行参数的来源，正文说明用途、响应式规则与限制；本次结构化不重新选择视觉方案。
 
 > 像阅读一份有据可查的研究报告。文字克制，图版有纸质感，数据可以鲜明。
 
@@ -8,7 +179,7 @@
 
 [运行样板与截图](preview/README.md)是规范的可操作示例；[验收记录](../../web/frontend/design-qa.md)记录实际检查。样板使用固定模拟数据。早期方案及选择过程单独保存在[历史记录](history/DESIGN-v0.20.md)，不作为实现依据。后续明确的新偏好以新版本更新本文件。
 
-## 1. 设计原则
+## Overview
 
 1. **以阅读组织页面。** 主题、摘要、章节、论述、图版、图注和口径说明构成主线，操作服务于内容。
 2. **文字与控件使用墨色。** 标题、正文、指标、导航、按钮保持黑灰色，通过字号、位置和间距表达主次。
@@ -19,7 +190,7 @@
 
 参考职责：AI 2027 提供长文与图版节奏；OpenAI 研究页面及 ChatGPT 官方界面图提供清楚的层级与净白分区；原始参考图提供纸页和鲜明数据色的关系。参考不等于复制品牌、字体或内容。参考来源、网站观察与访问限制见[参考记录](references/README.md)和[纸面参考记录](references/paper/README.md)；参考图中文字仅是素材。
 
-## 2. 颜色与纸面
+## Colors
 
 ### 阅读与操作
 
@@ -61,7 +232,7 @@
 
 普通文字对比度至少 4.5:1，大字至少 3:1，关键曲线和控件边界至少 3:1。热力格文字随实际底色选深墨或白色，并检查中间色阶。
 
-## 3. 中英文与数字字体
+## Typography
 
 | 职责 | 字体 | 字重 |
 | --- | --- | --- |
@@ -94,7 +265,7 @@
 
 字体由本地 Fontsource 依赖加载。已选字体保留 SIL OFL 1.1 原始许可：[细宋](../../web/frontend/public/licenses/fonts/noto-serif-sc.txt)、[界面黑体](../../web/frontend/public/licenses/fonts/noto-sans-sc.txt)、[Source Serif 4](../../web/frontend/public/licenses/fonts/source-serif-4.txt)、[Alegreya](../../web/frontend/public/licenses/fonts/alegreya.txt)。交付时随字体保留许可，不替换为来源不明的相似字体。
 
-## 4. 布局与密度
+## Layout
 
 定稿采用“紧凑研究”：
 
@@ -107,7 +278,15 @@
 - 主折线图桌面高 300px、手机 280px。图表和表格可在自身容器横向滚动，整页不得溢出；窄屏表格提供滑动提示。
 - 工具按使用流程分组；正常阅读页的辅助工具可收进附录。样板的研究工具展开显示，加载与异常状态演示默认折叠。
 
-## 5. 组件契约
+## Elevation & Depth
+
+图版、卡片与弹窗使用纯白纸面、1px 浅灰细边，不使用卡片投影。平面摘要依靠分隔线与间距建立层次。弹窗遮罩用于区分模态状态，不代表新增卡片阴影。
+
+## Shapes
+
+按钮与输入框采用 `rounded.control`（4px），图版与弹窗采用 `rounded.paper`（12px）。小型复选框、标签与分段项使用 `rounded.small`（3px）。图标画布 24×24，线宽 1.5；触摸目标仍至少 44px。
+
+## Components
 
 | 组件 | 外观 | 交互 |
 | --- | --- | --- |
@@ -124,7 +303,7 @@
 
 使用现有 **shadcn/ui（Radix）** 组件和 variants；图表使用现有 **ECharts**。Lucide 图标使用 24×24 画布、1.5 线宽，图标变细不缩小点击区域。焦点采用 2px 墨色外描边，偏移 4px。
 
-## 6. 数据与状态行为
+### 数据与状态行为
 
 - 一张图回答一个明确问题；时间、单位、来源和计算口径可见。禁止无依据的三维透视和平滑；柱状图保留零基线，缺失点不补零。
 - 区间切换联动指标、曲线、比较表、金额换算和导出。固定范围的独立图表明确标注，例如完整三年的月收益日历。
@@ -136,17 +315,34 @@
 - 数据过期、部分缺失显示截止日或原因，不将未知数值显示成零。模拟样板明确标识模拟，不能冒充真实行情。
 - 控件颜色过渡约 150ms；浮层只用短暂、轻微的过渡。图表不做装饰性入场动画；尊重 `prefers-reduced-motion`，停止循环加载动画。
 
-## 7. 工程映射
+## Do's and Don'ts
 
-- [固定主题](../../web/frontend/src/lib/design-preview-themes.ts)：`researchTheme` 保存定稿纸面、字体、密度和数据色；`previewThemeStyle()` 输出统一 CSS 变量，不接收候选方案。
-- [样板页](../../web/frontend/src/pages/design-preview.tsx)：直接采用固定主题；不读取风格选择参数。旧 `theme/paper/density/chinese/english/numbers/reading` 参数移除，旧风格锚点转到研究总览，其他参数和业务状态保留。
-- [研究工具](../../web/frontend/src/components/component-study.tsx)：共享报告周期，提供筛选、勾选、详情、CSV、金额换算及折叠状态示例。
-- [样式](../../web/frontend/src/style.css)：以 `.design-preview-theme` 和样板专属类名限定范围。portal 弹窗显式继承主题，避免回到其他页面的旧颜色。
-- [图表容器](../../web/frontend/src/components/design-preview-chart.tsx)：SVG 渲染，处理尺寸和字体加载；[模拟数据](../../web/frontend/src/lib/design-preview-data.ts)集中管理样本。
+- 用衬线层级组织阅读，用无衬线界面文字表达操作；数字使用等宽排列并保留符号与单位。
+- 界面保持中性，颜色用于有意义的数据编码；不要让分类色暗示涨跌。
+- 图表与表格提供等价可读数据；未知与缺失不可补零。
+- 不恢复已结束的风格选择器，不用装饰性阴影、渐变、旋转或纹理模拟纸张。
+- 复用研究主题及现有 shadcn 组件，不在页面里维护另一份颜色和字体表。
+
+## Engineering
+
+- YAML 参数通过 `npm run design:generate` 生成 [类型化参数](../../web/frontend/src/lib/design-tokens.generated.ts)。生成文件不手动编辑。
+- [研究主题](../../web/frontend/src/lib/research-theme.ts)将参数映射到 CSS 变量与 ECharts；[ResearchTheme](../../web/frontend/src/components/research-theme.tsx)是页面或组件的主题入口，同时加载本地字体。
+- [样式](../../web/frontend/src/style.css)以 `.research-theme` 限定组件外观。shadcn 的颜色变量映射到同一套纸面与墨色；Dialog 通过 React 上下文自动继承主题，支持 portal。
+- [样板页](../../web/frontend/src/pages/design-preview.tsx)与[研究工具](../../web/frontend/src/components/component-study.tsx)消费公共主题；[模拟数据](../../web/frontend/src/lib/design-preview-data.ts)仍单独管理，主题不包含业务数据。
+- `npm run design:check` 执行官方格式校验和生成文件一致性检查；构建前也执行检查，防止文档改了而代码仍用旧参数。
+- 组件状态、范围选择、图表和业务校验仍由 React 逻辑实现；YAML 不替代交互契约。图表 `width` 表示线宽，icon `width` 表示 SVG stroke-width，`size` 表示画布尺寸。
+
+```tsx
+<ResearchTheme>
+  <Button>主要操作</Button>
+  <Button variant="outline">次要操作</Button>
+  {/* Card / Input / Table / Dialog 等现有组件继承定稿样式 */}
+</ResearchTheme>
+```
 
 现有业务页的视觉迁移应随具体页面任务实施。不要只替换根变量后假定所有 Tailwind 静态颜色已同步；实际检查控件、浮层、图表和各状态。
 
-## 8. 生成与验收
+## Validation
 
 先读本文件，再按照任务的内容、数据和操作组织组件。任务只需要一个组件时，保持相应范围。研究阅读使用衬线层级，操作密集区域使用界面黑体；两者共用本规范的纸面、色彩和控件。
 
@@ -163,3 +359,5 @@
 - 数据、指标与导出一致；图表可访问，字体实际加载，关键交互经过浏览器检查。
 
 **当前没有阻碍 v1.0 使用的待选视觉项。** 后续页面的内容层级、业务字段和新增交互按具体需求确定；这些是页面设计工作，不需要重新选择整站风格。
+
+格式依据：[Google 官方规范](https://github.com/google-labs-code/design.md/blob/main/docs/spec.md)。规范仍处于 alpha；工具版本锁定，后续升级单独检查。

@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
 } from "react";
 import {
@@ -73,7 +72,7 @@ import {
   percent,
   type AssetId,
 } from "@/lib/design-preview-data";
-import { researchTheme } from "@/lib/design-preview-themes";
+import { researchTheme } from "@/lib/research-theme";
 
 type Scenario = "normal" | "loading" | "empty" | "error";
 type StudyRecord = (typeof assets)[number] & ReturnType<typeof metrics>;
@@ -94,14 +93,12 @@ function StudyDetail({
   range,
   selected,
   onSelect,
-  themeStyle,
   disabled,
 }: {
   record: StudyRecord;
   range: string;
   selected: boolean;
   onSelect: () => void;
-  themeStyle: CSSProperties;
   disabled: boolean;
 }) {
   return (
@@ -117,8 +114,7 @@ function StudyDetail({
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="design-preview-theme research-dialog component-detail-dialog"
-        style={themeStyle}
+        className="component-detail-dialog"
         showCloseButton={false}
       >
         <DialogHeader>
@@ -161,11 +157,9 @@ function StudyDetail({
 export function ComponentStudy({
   range,
   onRangeChange,
-  themeStyle,
 }: {
   range: string;
   onRangeChange: (value: string) => void;
-  themeStyle: CSSProperties;
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<AssetId[]>(initialSelection);
@@ -539,7 +533,6 @@ export function ComponentStudy({
                             range={range}
                             selected={selected.includes(record.id)}
                             onSelect={() => changeSelection(record.id)}
-                            themeStyle={themeStyle}
                             disabled={busy}
                           />
                         </TableCell>

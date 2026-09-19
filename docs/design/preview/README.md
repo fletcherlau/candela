@@ -39,3 +39,7 @@ curl -I http://127.0.0.1:4173/design-preview
 ## 历史存档
 
 [探索过程记录](../history/preview-v0.20.md)和[旧规范](../history/DESIGN-v0.20.md)仅用于追溯选择过程。当前目录仅保留上方三张定稿截图；参考图、旧方案与过程截图已移除。文字观察与 JSON 检查记录保留，历史链接中的参数不会再开启候选样式。
+
+## 组件复用
+
+样板已接入 [共享研究主题](../components.md)，参数从 DESIGN.md YAML 生成。新增页面使用 ResearchTheme；现有 Dialog 自动继承 portal 主题。运行 `npm run design:check` 检查文档与代码一致性，`npm run test:design` 检查主题隔离、弹窗与响应式。

@@ -1,3 +1,4 @@
+import { ResearchTheme } from "@/components/research-theme";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowRight, ArrowUpRight, ChevronDown } from "lucide-react";
 import {
@@ -41,19 +42,10 @@ import {
 } from "@/lib/design-preview-data";
 import {
   researchTheme,
-  previewThemeStyle,
   heatmapLabelColor,
-} from "@/lib/design-preview-themes";
+} from "@/lib/research-theme";
 import type { EChartsCoreOption } from "echarts/core";
-import "@fontsource/source-serif-4/latin-300.css";
-import "@fontsource/source-serif-4/latin-400.css";
-import "@fontsource/source-serif-4/latin-500.css";
-import "@fontsource/alegreya/latin-400.css";
-import "@fontsource/alegreya/latin-500.css";
-import "@fontsource-variable/noto-sans-sc";
-import "@fontsource-variable/noto-serif-sc";
 
-const themeStyle = previewThemeStyle();
 const numberFont = researchTheme.typography.numbers;
 const { paper, edge: paperEdge } = researchTheme.surface;
 const retiredDesignParams = [
@@ -74,8 +66,8 @@ const retiredDesignAnchors = [
 ];
 
 const lineStyles = ["solid", "solid", "dashed", "dotted", "dashed"] as const;
-const lineWidthFor = (id: string) => (id === "strategy" ? 1.6 : 1.2);
-const font = '"Noto Sans SC Variable", "PingFang SC", sans-serif';
+const lineWidthFor = (id: string) => (id === "strategy" ? researchTheme.lineWidth.primary : researchTheme.lineWidth.comparison);
+const font = researchTheme.typography.interface;
 const ranges = [
   { value: "6", label: "近半年" },
   { value: "12", label: "近一年" },
@@ -315,9 +307,8 @@ export function DesignPreview() {
     .sort((a, b) => (descending ? b.total - a.total : a.total - b.total));
 
   return (
-    <div
-      className="design-preview-theme design-preview"
-      style={themeStyle}
+    <ResearchTheme
+      className="design-preview"
       data-theme="research"
       data-design-version={researchTheme.version}
       data-paper={researchTheme.surface.id}
@@ -392,10 +383,7 @@ export function DesignPreview() {
                     数据与方法 <ArrowUpRight data-icon="inline-end" />
                   </Button>
                 </DialogTrigger>
-                <DialogContent
-                  className="design-preview-theme research-dialog"
-                  style={themeStyle}
-                >
+                <DialogContent>
                   <DialogHeader>
                     <DialogTitle>关于这份研究样板</DialogTitle>
                     <DialogDescription>
@@ -592,8 +580,7 @@ export function DesignPreview() {
                     </Button>
                   </DialogTrigger>
                   <DialogContent
-                    className="design-preview-theme research-dialog research-data-dialog"
-                    style={themeStyle}
+                    className="research-data-dialog"
                   >
                     <DialogHeader>
                       <DialogTitle>模拟月末数据</DialogTitle>
@@ -832,7 +819,6 @@ export function DesignPreview() {
           <ComponentStudy
             range={range}
             onRangeChange={setRange}
-            themeStyle={themeStyle}
           />
         </main>
         <footer className="research-footer">
@@ -844,6 +830,6 @@ export function DesignPreview() {
           <a href="#overview">回到顶部 ↑</a>
         </footer>
       </div>
-    </div>
+    </ResearchTheme>
   );
 }

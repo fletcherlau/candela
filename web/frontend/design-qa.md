@@ -228,3 +228,15 @@ AI 2027 已通过真实浏览器截图查看；OpenAI 的公开内容结构已�
 - 已查看最终[总览](../../docs/design/preview/finalized-overview.png)、图版、[研究工具](../../docs/design/preview/finalized-components.png)及[手机](../../docs/design/preview/finalized-mobile.png)截图，首屏及页尾不再显示风格选项。
 
 v0.20 规范及截图索引归档到 `docs/design/history/`，当前 DESIGN.md 只保留现行规则。`web/frontend/AGENTS.md` 引用当前规范，供后续前端任务直接采用。
+
+## Google 格式结构化与共享组件接入 · 2026-09-19
+
+- DESIGN.md 补齐 Google `alpha` YAML 与标准章节，保留已确认的 v1.0 视觉选择及中文说明。
+- 采用锁定的 `@google/design.md` 0.4.0；[官方检查结果](../../docs/design/preview/structured-design-lint.json)为 0 errors、13 条仅涉及代码侧颜色引用的 orphaned-tokens 警告，详见[接入说明](../../docs/design/components.md)。
+- 文档参数生成类型化 TypeScript，构建前检查一致性。实际注入陈旧文件标记后检查失败；恢复后检查通过。
+- 独立 ResearchTheme 入口加载字体、参数与组件样式；Dialog 自动继承 portal 主题。修复输入框 3px / 规范 4px 的差异、默认弹窗阴影、关闭按钮目标尺寸及旧绿色焦点样式泄漏。
+- Tailwind 原先写死的界面颜色改为语义变量，并保留旧页面的默认值；研究主题中的 secondary / destructive 控件也能使用正确颜色。
+- TypeScript + Vite 构建通过；现有样板分包仍有超过 500kB 的体积提示。
+- `npm run test:design` 的 5 项 Playwright 检查通过：独立组件与旧主题同时渲染、勾选键盘操作、弹窗白纸与标题字重、焦点约束与恢复、关闭按钮 44px 点击区，以及 1440 / 820 / 390 / 320px 样板检查，无页面脚本错误。
+- 相同视口前后计算样式对比：标题、正文、英文、数字、图版、按钮、布局尺寸保持一致；输入框圆角按规范从 3px 改为 4px。已实际查看桌面全页、手机首屏及手机弹窗截图。
+- 过程截图在临时目录，不增加仓库图片。正式策略页尚未迁移；下一批 portal 组件仍需接入主题并单独验证。
