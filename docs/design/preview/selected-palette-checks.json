@@ -1,0 +1,55 @@
+{
+  "palette": [
+    "#C4435B",
+    "#287E9A",
+    "#927A29",
+    "#75629E",
+    "#3E8A72"
+  ],
+  "unchanged": {
+    "curveGeometry": true,
+    "metrics": true,
+    "fontFamiliesAndWeights": true,
+    "paper": true,
+    "lineWidths": true
+  },
+  "lineColors": [
+    "#C4435B",
+    "#287E9A",
+    "#927A29"
+  ],
+  "legendColors": [
+    "#C4435B",
+    "#287E9A",
+    "#927A29",
+    "#75629E",
+    "#3E8A72"
+  ],
+  "tableDotColors": [
+    "rgb(62, 138, 114)",
+    "rgb(146, 122, 41)",
+    "rgb(196, 67, 91)",
+    "rgb(117, 98, 158)",
+    "rgb(40, 126, 154)"
+  ],
+  "heatmapLabels": 36,
+  "minHeatTextContrast": 5.265275638389788,
+  "allSeries": [
+    "#C4435B",
+    "#287E9A",
+    "#927A29",
+    "#75629E",
+    "#3E8A72"
+  ],
+  "responsive": [
+    {
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "width": 320,
+      "scroll": 320
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,29 @@
+{
+  "checks": [
+    "Keyboard skip link and visible focus",
+    "Period updates linked metrics",
+    "Drawdown toggle",
+    "Series selection",
+    "Data dialog, Escape, and focus restoration",
+    "Table filtering and empty result",
+    "Table sorting",
+    "Amount calculation and validation",
+    "State selection and CSV export: 43 observations plus header",
+    "Chart hover tooltip",
+    "Responsive layout without page overflow: 768px",
+    "Responsive layout without page overflow: 390px",
+    "Responsive layout without page overflow: 320px",
+    "Existing homepage retains original theme",
+    "No browser console errors"
+  ],
+  "errors": [],
+  "themeVersion": "0.2",
+  "contrastRatios": {
+    "body": 12.85,
+    "muted on subtle": 4.77,
+    "accent on white": 4.61,
+    "comparison line": 3.57,
+    "control on subtle": 3.27,
+    "heatmap label": 5.58
+  }
+}

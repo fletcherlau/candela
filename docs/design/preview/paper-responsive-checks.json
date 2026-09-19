@@ -1,0 +1,800 @@
+[
+  {
+    "variant": "layered",
+    "width": 1024,
+    "scrollWidth": 1024,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(228, 231, 234)",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px",
+      "radius": "2px"
+    },
+    "smallControls": [
+      {
+        "width": 306.65625,
+        "height": 253.0625
+      },
+      {
+        "width": 306.671875,
+        "height": 253.0625
+      },
+      {
+        "width": 306.65625,
+        "height": 253.0625
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "warm",
+    "width": 1024,
+    "scrollWidth": 1024,
+    "card": {
+      "background": "rgb(250, 249, 245)",
+      "border": "rgb(216, 212, 202)",
+      "shadow": "none",
+      "radius": "4px"
+    },
+    "smallControls": [
+      {
+        "width": 306.65625,
+        "height": 253.0625
+      },
+      {
+        "width": 306.671875,
+        "height": 253.0625
+      },
+      {
+        "width": 306.65625,
+        "height": 253.0625
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "white",
+    "width": 1024,
+    "scrollWidth": 1024,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(222, 222, 222)",
+      "shadow": "none",
+      "radius": "12px"
+    },
+    "smallControls": [
+      {
+        "width": 306.65625,
+        "height": 253.0625
+      },
+      {
+        "width": 306.671875,
+        "height": 253.0625
+      },
+      {
+        "width": 306.65625,
+        "height": 253.0625
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "layered",
+    "width": 820,
+    "scrollWidth": 820,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(228, 231, 234)",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px",
+      "radius": "2px"
+    },
+    "smallControls": [
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "warm",
+    "width": 820,
+    "scrollWidth": 820,
+    "card": {
+      "background": "rgb(250, 249, 245)",
+      "border": "rgb(216, 212, 202)",
+      "shadow": "none",
+      "radius": "4px"
+    },
+    "smallControls": [
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "white",
+    "width": 820,
+    "scrollWidth": 820,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(222, 222, 222)",
+      "shadow": "none",
+      "radius": "12px"
+    },
+    "smallControls": [
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 245.328125,
+        "height": 229.375
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "white",
+    "width": 768,
+    "scrollWidth": 768,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(222, 222, 222)",
+      "shadow": "none",
+      "radius": "12px"
+    },
+    "smallControls": [
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "layered",
+    "width": 768,
+    "scrollWidth": 768,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(228, 231, 234)",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px",
+      "radius": "2px"
+    },
+    "smallControls": [
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "warm",
+    "width": 768,
+    "scrollWidth": 768,
+    "card": {
+      "background": "rgb(250, 249, 245)",
+      "border": "rgb(216, 212, 202)",
+      "shadow": "none",
+      "radius": "4px"
+    },
+    "smallControls": [
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 228,
+        "height": 229.375
+      },
+      {
+        "width": 107,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      },
+      {
+        "width": 108,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "white",
+    "width": 600,
+    "scrollWidth": 600,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(222, 222, 222)",
+      "shadow": "none",
+      "radius": "12px"
+    },
+    "smallControls": [
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "layered",
+    "width": 600,
+    "scrollWidth": 600,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(228, 231, 234)",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px",
+      "radius": "2px"
+    },
+    "smallControls": [
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "warm",
+    "width": 600,
+    "scrollWidth": 600,
+    "card": {
+      "background": "rgb(250, 249, 245)",
+      "border": "rgb(216, 212, 202)",
+      "shadow": "none",
+      "radius": "4px"
+    },
+    "smallControls": [
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 536,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "white",
+    "width": 520,
+    "scrollWidth": 520,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(222, 222, 222)",
+      "shadow": "none",
+      "radius": "12px"
+    },
+    "smallControls": [
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "white",
+    "width": 390,
+    "scrollWidth": 390,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(222, 222, 222)",
+      "shadow": "none",
+      "radius": "12px"
+    },
+    "smallControls": [
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "layered",
+    "width": 520,
+    "scrollWidth": 520,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(228, 231, 234)",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px",
+      "radius": "2px"
+    },
+    "smallControls": [
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "warm",
+    "width": 520,
+    "scrollWidth": 520,
+    "card": {
+      "background": "rgb(250, 249, 245)",
+      "border": "rgb(216, 212, 202)",
+      "shadow": "none",
+      "radius": "4px"
+    },
+    "smallControls": [
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 480,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "layered",
+    "width": 390,
+    "scrollWidth": 390,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(228, 231, 234)",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px",
+      "radius": "2px"
+    },
+    "smallControls": [
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "warm",
+    "width": 390,
+    "scrollWidth": 390,
+    "card": {
+      "background": "rgb(250, 249, 245)",
+      "border": "rgb(216, 212, 202)",
+      "shadow": "none",
+      "radius": "4px"
+    },
+    "smallControls": [
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 350,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "white",
+    "width": 320,
+    "scrollWidth": 320,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(222, 222, 222)",
+      "shadow": "none",
+      "radius": "12px"
+    },
+    "smallControls": [
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "warm",
+    "width": 320,
+    "scrollWidth": 320,
+    "card": {
+      "background": "rgb(250, 249, 245)",
+      "border": "rgb(216, 212, 202)",
+      "shadow": "none",
+      "radius": "4px"
+    },
+    "smallControls": [
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  {
+    "variant": "layered",
+    "width": 320,
+    "scrollWidth": 320,
+    "card": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(228, 231, 234)",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px",
+      "radius": "2px"
+    },
+    "smallControls": [
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 280,
+        "height": 92.28125
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      },
+      {
+        "width": 84,
+        "height": 44
+      }
+    ],
+    "errors": []
+  }
+]

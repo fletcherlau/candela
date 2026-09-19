@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { ArrowRight, ChartNoAxesCombined, Database, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,12 @@ import {
 } from "@/components/ui/navigation-menu";
 import { Rotation } from "@/pages/rotation";
 import { DataManagement } from "@/pages/data-management";
+
+const DesignPreview = lazy(() =>
+  import("@/pages/design-preview").then((module) => ({
+    default: module.DesignPreview,
+  })),
+);
 
 function Brand() {
   return (
@@ -221,6 +228,13 @@ function Admin() {
 }
 
 export function App() {
+  if (location.pathname === "/design-preview") {
+    return (
+      <Suspense fallback={<p role="status">正在打开设计样板…</p>}>
+        <DesignPreview />
+      </Suspense>
+    );
+  }
   const admin =
     location.pathname === "/admin" || location.pathname === "/admin/data";
   return (

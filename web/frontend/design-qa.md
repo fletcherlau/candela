@@ -1,0 +1,228 @@
+# 策略研究样板 · 视觉与交互验收
+
+日期：2026-09-19 · DESIGN.md v0.15
+final result: passed
+
+`passed` 指实现与浏览器检查通过。用户已认可 v0.5 的整体研究报告方向；v0.7 已选定 Source Serif 4 数字字体。
+
+## v0.5 · 整体方向
+
+用户明确希望像研究报告：参考 AI 2027，并补充 OpenAI 研究页面；卡片有纸质感，数据图形允许鲜明，文字保持克制。
+
+- 标题、摘要、章节编号、连续正文、图注和页边说明组织阅读。
+- 正文和指标使用墨色，导航与控件使用黑灰色；系列色集中在图形与小型图例标记。
+- 图版为暖纸底、4px 圆角、细边和轻投影。指标、正文、目录和边注不再各自包卡片。
+- 使用中文衬线阅读字体，控件、表格、刻度保留无衬线字体。
+- 早期 A–D 主题切换器已收起；旧主题查询参数不会覆盖当前报告风格。历史截图仍保留。
+- 附录默认折叠，展开后可进行金额换算、状态预览和数据导出。
+
+## 来源与截图
+
+AI 2027 已通过真实浏览器截图查看；OpenAI 的公开内容结构已读取，但直接浏览器访问出现访问验证，未取得有效视觉截图。因此不将 OpenAI 标记为精确复刻来源。
+
+- [设计规范](../../docs/design/DESIGN.md)、[参考与取舍](../../docs/design/references/README.md)。
+- [桌面主画面](../../docs/design/preview/showcase.png)、[桌面全页](../../docs/design/preview/desktop.png)。
+- [收益图版](../../docs/design/preview/report-figure.png)、[月度图版](../../docs/design/preview/detail.png)。
+- [手机首屏](../../docs/design/preview/mobile-top.png)、[手机全页](../../docs/design/preview/mobile.png)、[附录](../../docs/design/preview/components.png)。
+
+已查看实际桌面、主图、月度图与手机截图。手机标题原先出现尾部短行，改为“收益与回撤的观察”，并重新截图核对。
+
+## 验证结果
+
+记录：[report-checks.json](../../docs/design/preview/report-checks.json)。采用用户已授权的本地 Chromium / Playwright。
+
+- 周期切换联动指标、收益/回撤切换、比较序列开关和图表悬浮提示通过。
+- 数据弹窗显示所选区间数据，Escape 关闭后焦点恢复。
+- 标的筛选、无匹配提示、收益排序与排序语义通过。
+- 附录可以通过键盘 Enter 展开；金额输入错误与有效值反馈通过。
+- 加载、空、失败、就绪状态切换与 CSV 导出通过；半年 CSV 包含43个采样点和表头。
+- 1024、820、768、390、320px 下无整页横向溢出；热力图与表格在自身容器滚动。
+- 原产品首页保留原有主题；无页面脚本或浏览器控制台错误。
+- TypeScript 检查和生产构建通过。样板包含 ECharts，仍有单个 JS 包超过500kB的构建提示；未在本轮做包体积优化。
+
+## 对比度
+
+按当前实际主题色与背景计算：
+
+| 组合 | 对比度 |
+| --- | --- |
+| 正文 / 页面 | 14.79:1 |
+| 次要文字 / 纸面 | 5.59:1 |
+| 控件边界 / 纸面 | 3.53:1 |
+| 五条曲线 / 纸面 | 最低3.68:1 |
+| 热力格标签 / 填色 | 全部连续色阶采样最低4.58:1 |
+
+热力格标签会按插值后的填色亮度选择白或黑；避免仅检查色阶端点。系列另有名称、线型和可访问数据表，不单独依靠颜色。
+
+## 范围与限制
+
+所有数据都是固定模拟值。此页用于视觉与交互校准，未接入真实行情、账户、持久化或真实回测。未做全量屏幕阅读器、跨浏览器和正式性能验收。
+
+历史校准：v0.2 有知有行白灰蓝；v0.3 A/B/C 候选；v0.4 黄色候选。本版根据用户最新明确方向重新组织页面，历史色彩规则不再作为当前规范。
+
+
+## v0.6 · 三款数字字体试读（历史校准）
+
+新增顶部 Inter、IBM Plex Sans、Source Serif 4 的并排数字样张，统一字号、400字重、墨色、数据与对齐。原报告的数字可独立切换，中文叙述和字标保持原设置。
+
+- [并排样张](../../docs/design/preview/number-font-comparison.png)、[手机样张](../../docs/design/preview/number-font-mobile.png)。
+- [验证记录](../../docs/design/preview/number-font-checks.json)：用 Chromium DevTools 协议确认三张样卡的实际渲染字体分别为 Inter-Regular、IBMPlexSans-Regular 和 SourceSerif4-Regular，均为加载的网页字体；另用字符宽度测量验证等宽数字。
+- 切换联动指标、输入、坐标刻度和数据弹窗，保留已选周期与金额；URL刷新保留候选，无效参数回退 Inter。
+- 键盘方向键与空格选择通过；三款各在1024、820、768、390、320px下无整页横向溢出。
+- 三份原始 SIL OFL 1.1 许可证已随站点发布，可从样卡打开；页面检查无脚本和控制台错误。
+- TypeScript 与构建通过。新增字体为本地 Fontsource 依赖，浏览器不依赖外部字体服务。保留既有超过500kB的样板 JS 包提示。
+
+顶部表格样本始终使用固定同一份数字，用于字体比较；下方研究报告继续使用当前筛选范围。默认试读 Inter 不代表已批准的品牌字体。
+
+## v0.7 · Source Serif 4 选定
+
+用户更偏好 Source Serif 4 的出版物观感，现设为默认数据数字字体。无参数或无效字体参数回退 Source Serif 4，A/B 链接仍可临时对照，界面明确区分已选默认与临时对照。
+
+数据表与弹窗数值为14px，热力数值由11px调整为12px；保留400常规字重、正体等宽数字和原有对比度规则。
+
+- [本轮检查](../../docs/design/preview/selected-number-font-checks.json)：默认/无效参数、临时对照、表格与弹窗字号、1024/768/390/320px页面无溢出均通过，无页面脚本错误。
+- [Source Serif 4 图版](../../docs/design/preview/selected-number-font-chart.png)，顶部桌面和手机对比截图已更新。
+- TypeScript 与构建通过；最后的弹窗字号选择器调整经浏览器核实为14px。
+
+
+## v0.8 · 中文轻字重试读（历史校准）
+
+新增 A 细宋 300、B 同款宋体 400、C 细黑 300；正文 400 / 300 独立切换，混排数字固定 Source Serif 4 400。默认 A + 正文 400 不是最终中文决定。
+
+- 已查看 [桌面对照](../../docs/design/preview/chinese-font-comparison.png)、[手机对照](../../docs/design/preview/chinese-font-mobile.png)、[报告标题区](../../docs/design/preview/chinese-serif-light-report.png)。
+- [验证记录](../../docs/design/preview/chinese-font-checks.json)：CDP 确认实际加载的 Noto Serif SC / Noto Sans SC，计算样式确认标题字重 300 / 400 / 300。可变字体内部名称含 ExtraLight / Thin，不用于推断实际应用字重。
+- 中文及正文轻重切换保留周期与金额，数字保持 Source Serif 4；URL 刷新、无效参数回退、键盘方向键与空格选择通过。
+- 三种候选分别在 1024、900、768、560、390、320px 下无整页横向溢出。
+- 两份中文许可 HTTP 200 且包含 SIL OFL 1.1；数字历史对照可展开，从 Inter 切回中文时恢复 Source Serif 4。
+- 无页面脚本与控制台错误，TypeScript 与生产构建通过；保留既有超过 500kB 的样板 JS 包提示。
+
+
+## v0.9 · 中文选定 A · 细宋
+
+用户明确选择 A。中文默认方案记录为 Noto Serif SC、标题 300；正文暂保留 400，数字继续使用 Source Serif 4。页面明确显示“已选定”，B/C 选择仅标记为临时对照；无参数或无效中文参数回退 A。未改变字体文件、字号与布局。
+
+验证：TypeScript 与 `git diff --check` 通过；浏览器核实默认与无效参数均使用 A、标题 300 / 正文 400 / Source Serif 4 数字，C 临时对照正确标示已选默认仍为 A，无页面脚本错误。
+
+
+## v0.10 · 英文字体试读（历史校准）
+
+新增 A Inter、B Source Serif 4、C Cormorant Garamond；标题统一 32px / 300、正文 18px / 400、图注 14px / 400。英文可应用到报告的英文标题、摘要及混排术语。中文与数字保持已选方案；B 是推荐试读起点，不是用户决定。
+
+- [检查记录](../../docs/design/preview/english-font-checks.json)：CDP 确认三款真实网页字体的标题与正文均成功加载，字重分别为 300 / 400。
+- 三款切换联动报告英文与混排，保持细宋标题 300、正文 400 和 Source Serif 4 数字，同时保留周期与金额。
+- 三款在 1024、900、768、560、390、320px 下均无整页横向溢出；刷新保留选项，无效参数回退 B。
+- 方向键移动焦点、空格选择通过；自动化检查等待 Radix 完成焦点移动后再按空格。
+- 三份原始许可证均能打开；中文及数字旧锚点可展开历史对照；页面无脚本或控制台错误。
+- TypeScript 与生产构建通过；后续仅调整段落间距并重新核对布局与截图。保留原有超过 500kB 的样板 JS 包提示。
+- 已查看 [桌面对照](../../docs/design/preview/english-font-comparison.png)、[手机对照](../../docs/design/preview/english-font-mobile.png)、[报告混排](../../docs/design/preview/english-source-serif-report.png)；修复了段落间距被基础样式覆盖的问题。
+
+
+## v0.11 · 英文 C 对照（历史，已由 v0.12 替代）
+
+用户明确选择 C。默认英文阅读字体固定为 Cormorant Garamond，标题 300、正文与混排 400；中文继续用细宋，数据数字继续用 Source Serif 4。页面明确显示“已选定”，显式选择 A/B 仅为临时对照，无参数或无效参数回退 C。本轮不调整字体文件、字号或布局。
+
+验证：TypeScript 与 `git diff --check` 通过；[浏览器记录](../../docs/design/preview/selected-english-cormorant-checks.json) 确认当时默认 C、无效参数回退 C、临时 B 状态正确，中英文与数字职责保持；1024 / 390 / 320px 下无整页溢出，无页面脚本错误。[C 版报告混排截图](../../docs/design/preview/english-cormorant-report.png)。
+
+
+## v0.12 · 英文最终选定 B · Source Serif 4
+
+用户纠正选择，最终确认 B。英文默认与无效参数回退统一为 Source Serif 4，标题 300、正文与混排 400。中文仍为细宋，数字仍为 Source Serif 4；A/C 可临时对照，界面明确已选定 B。状态文案从默认配置读取，避免后续与配置不一致。
+
+验证：TypeScript 与格式检查通过；[浏览器记录](../../docs/design/preview/selected-english-font-checks.json) 确认默认 B、无效参数回退 B、临时 C 的状态正确；标题 300 / 正文 400，中文和数字保持已选方案；1024 / 390 / 320px 无整页溢出，无页面脚本错误。
+
+
+## v0.13 · 字体搭配定稿
+
+用户确认字体可以定稿：中文细宋，英文与数据数字 Source Serif 4；中英文标题 300，正文和普通数字 400。本轮仅同步设计决定并移除正文的暂定措辞，没有改变字体文件、运行时默认值或布局，沿用 v0.12 的验证结果。下一步建议校准版式与密度，尚未实施新方案。
+
+
+## v0.14 · 舒展 / 紧凑排版对照（历史校准）
+
+同一报告增加 A 舒展阅读与 B 紧凑研究，固定字体、字重、颜色与数据。排版选择器在阅读时吸附顶部；字体历史对照移至页尾，保持原有锚点可用。默认 A 只是比较起点。
+
+- [浏览器记录](../../docs/design/preview/density-checks.json)：桌面测得 A / B 外层宽度 1160 / 1280px，标题 46 / 36px，正文 18 / 16px，表格单元格上下内边距 16 / 10px；标题仍为 300，正文 400，字体家族与颜色 token 完全一致。
+- 切换后周期、收益/回撤模式、序列开关、筛选、金额与指标数值均保持；图表 SVG 尺寸与容器一致。
+- 两版在 1024、820、768、520、390、320px 下无整页横向溢出；手机中英文正文均为 16px。
+- URL 刷新、无效参数回退、popstate 同步、方向键与空格选择通过；历史中英文与数字锚点均可展开对应样张。
+- TypeScript 与生产构建通过，无浏览器脚本或控制台错误。保留原有超过 500kB 的样板 JS 包提示。
+- 已查看同视口 [A 桌面](../../docs/design/preview/density-relaxed-desktop.png) / [B 桌面](../../docs/design/preview/density-compact-desktop.png)、[A 图版](../../docs/design/preview/density-relaxed-figure.png) / [B 图版](../../docs/design/preview/density-compact-figure.png)、[A 手机](../../docs/design/preview/density-relaxed-mobile.png) / [B 手机](../../docs/design/preview/density-compact-mobile.png)。标题与正文层次清楚，切换栏未遮挡图版，数据区域保留可读空间。
+
+
+## v0.15 · 排版选定 B · 紧凑研究
+
+用户明确选择 B。默认排版与无效参数回退改为 compact，页面显示已选定，A 保留为临时对照。DESIGN.md 的核心字号、行高、版心和间距规则同步为 B，避免生成组件时继续采用旧的 A 基准。本轮只更新默认值与决策文案，未改动 B 的布局参数、字体或颜色。
+
+验证：TypeScript 与格式检查通过；[浏览器记录](../../docs/design/preview/selected-density-checks.json) 确认默认与无效参数均回退 B、A 正确标示为临时对照，已定中英文及数字字体保持。桌面 B 标题 36px / 正文 16px，390 / 320px 下正文保持 16px、无整页溢出，无页面脚本错误。
+
+
+## v0.16 · 纸面层次 A/B/C（历史校准）
+
+新增 A 暖纸书页、B 净白留白、C 轻叠纸页，顶部展示相同文字小样，可切换整份报告。沿用细宋、英文与数字 Source Serif 4、正文 400 及 B · 紧凑研究；纸面尚待用户决定，默认 A 只用于初始试读。
+
+- [参考观察](../../docs/design/references/paper/README.md)：Anthropic / 有知有行实际浏览器截图及可见区域计算样式；ChatGPT 交互首页触发访问验证，改用官方介绍页公开展示的界面图，并明确来源限制。
+- [交互记录](../../docs/design/preview/paper-checks.json)：小样与整页选择器双向同步；URL、刷新、无效值回退、popstate、方向键与空格选择通过；字体和排版旧锚点仍展开对应历史样张。
+- 三版保持周期、回撤模式、可见序列、筛选、金额、指标和相同 SVG 曲线路径；字体、字重、字号、系列色保持。摘要指标继续为透明底，无卡片投影。
+- 弹窗的纸色、边缘和圆角跟随方案；Escape 关闭正常。实际鼠标悬停显示图表 tooltip，纸色与边框同步当前方案。tooltip 的可见性由计算样式验证，不能仅判断是否存在内联 visibility 属性。
+- [响应式记录](../../docs/design/preview/paper-responsive-checks.json)：A/B/C 各在 1024、820、768、600、520、390、320px 下无整页横向溢出；纸面切换按钮至少 44px 高。
+- 三版灰字在画布、纸页与弱底上的最低对比度分别约 4.54 / 5.16 / 4.91；控件边界相对外部背景至少 3.11，系列曲线相对图版至少 3.58。
+- TypeScript 与生产构建通过，浏览器无页面或控制台错误，`git diff --check` 通过。保留既有样板 JS 超过 500kB 的构建提示，本轮未新增依赖。
+- 已查看 [桌面比较区](../../docs/design/preview/paper-warm-desktop.png)、同位置图版 [A](../../docs/design/preview/paper-warm-figure.png) / [B](../../docs/design/preview/paper-white-figure.png) / [C](../../docs/design/preview/paper-layered-figure.png) 以及 [手机比较区](../../docs/design/preview/paper-layered-mobile.png)。未将外站截图作为页面素材发布。
+
+
+## v0.17 · 纸面选定 B · 净白留白
+
+用户明确偏好 B 的 OpenAI / ChatGPT 气质。将默认纸面与无效参数回退设为 white，页面明确显示“纸面已选定”；A/C 保留为临时对照并标明默认仍为 B。DESIGN.md 核心 token、纸卡圆角与投影规则同步 B，CSS 回退值也统一。B 的材质参数及此前定稿的字体、紧凑排版、数据色均保持。
+
+验证：TypeScript 与 `git diff --check` 通过；[浏览器记录](../../docs/design/preview/selected-paper-checks.json)确认默认/无效参数为 B、A/C 正确标示临时对照、刷新保留 B，字体与紧凑排版保持。1024 / 768 / 390 / 320px 下无整页溢出，定稿标识始终可见，吸附栏高度未超过章节锚点预留空间，无页面脚本错误。本轮只更新默认和文案，沿用 v0.16 的完整交互验证。
+
+定稿文案截图：[桌面](../../docs/design/preview/selected-paper-desktop.png) / [手机](../../docs/design/preview/selected-paper-mobile.png)。
+
+
+## v0.18 · A 系列配色扩展与细线
+
+用户偏好 A 的出版物数据色方向，具体组合仍待确认。对话内保留 A1 原版，增加 A2 胭脂湖蓝、A3 陶朱靛蓝、A4 梅紫松绿、A5 孔雀蓝赭金；候选色值记录于 DESIGN.md 第 16 节。采用同一份示意数据、白色纸面和中性文字；线宽可在细线与上一版之间切换。
+
+- 对话内五组配色 × 两档线宽均正确更新，曲线路径与数值不变；键盘 Enter 选择、状态恢复和数据表展开正常，无页面脚本错误。实际色值与设定一致；全部候选热力格文字最低对比度约 4.62:1。
+- 已查看桌面和 320px 截图；780 / 420 / 320px 视口无整页溢出。手机减少横轴刻度，保留完整图例和终值标签。
+- 样板页主线由 2.8px 改为 1.6px，比较线由 1.7px 改为 1.2px，悬停不再加粗；图例同步。Lucide 图标在样板及 portal 弹窗均为 1.5 线宽，点击区域保持。
+- [浏览器记录](../../docs/design/preview/thin-line-checks.json)：实际 SVG 线宽、悬停线宽、图标与弹窗图标正确；收益/回撤、序列切换和查看数据正常，390 / 320px 无整页溢出，无页面脚本错误。已查看[实际图版](../../docs/design/preview/thin-line-figure.png)。
+- TypeScript 与 `git diff --check` 通过；本轮未改变数据、字体、纸面、布局、依赖或正式业务页面。
+
+
+## v0.19 · 数据配色选定 A2 · 胭脂湖蓝
+
+用户明确偏好 A2，认为更接近自己熟悉的股票蜡烛图色彩，读起来更直观。将 A2 应用于研究报告曲线、图例、表格标记及月度热力图；图表说明与无障碍摘要同步为湖蓝负值、胭脂红正值。DESIGN.md 核心颜色契约及预览说明标记为已选定，保留其他色盘作为历史对照。
+
+- [浏览器记录](../../docs/design/preview/selected-palette-checks.json)：五个系列在曲线、图例与表格中的颜色一致；默认三条与展开五条的色值正确。
+- 与换色前的实际快照比较，曲线路径、指标结果、字体家族和字重、纸面及细线宽度完全一致。
+- 36 个实际热力格的文字最低对比度约 5.26:1；方向说明、数值及可访问摘要一致，390 / 320px 下无整页横向溢出，无页面脚本错误。
+- 已查看[定稿折线图](../../docs/design/preview/selected-palette-line.png)及[定稿热力图](../../docs/design/preview/selected-palette-heatmap.png)。TypeScript 和 `git diff --check` 通过。
+
+
+## v0.20 · 组件样式与交互试用（待用户确认）
+
+将原研究附录替换为展开的“组件试用”区域，沿用已选定的字体、B · 紧凑研究、B · 净白留白和 A2 · 胭脂湖蓝。观察清单支持搜索、共享观察周期、排序、勾选、详情和真实 CSV 下载；金额换算支持校验与计算；状态试用支持加载、无数据和失败后的恢复。新增 shadcn Checkbox、Spinner，复用现有控件。组件样式本轮仅为推荐方案，尚未定稿。
+
+- [浏览器验证记录](../../docs/design/preview/component-study-checks.json)：全选、部分选择、标签点击及空格操作通过；筛选后只影响可见记录，详情里的选择与清单同步。弹窗焦点不会离开内容，Escape 与“返回清单”均恢复触发按钮焦点。
+- 排序结果与方向一致，观察周期与上方报告同步。实际下载近 6 个月的黄金 ETF CSV，共 44 行（含表头），首尾日期、列选择和末值均与表格一致；准备过程中控件禁用，防止重复操作。
+- 失败后重新加载保留筛选、周期和选择；无数据可恢复，搜索空结果可清除筛选，手动加载可回到正常状态。减少动态效果设置下骨架动画停止。
+- 金额 0 在首次点击计算时即显示错误并聚焦输入框；输入 100,000 后按 Enter 可计算，近 6 个月的独立计算预期为 111,159.63 元。修复了错误提示出现时推移按钮、导致首次点击失效的问题，反馈区域现在保留稳定高度。
+- 1280 / 1040 / 820 / 640 / 390 / 320px 无整页横向溢出，手机表格在自身容器内滚动并显示提示；复选框点击区域至少 44 × 44px，手机弹窗不超出视口。
+- 标题细宋 300、数据 Source Serif 4 400、输入控件 Noto Sans SC 400 保持。弹窗的 asChild 关闭按钮纳入样板的样式范围，动画结束后高度 44px，键盘焦点为中性色描边；错误文字使用既有语义色 #A33343。
+- TypeScript 与生产构建通过，浏览器无页面脚本错误，`git diff --check` 通过。保留既有样板 JS 超过 500kB 的构建提示。
+- 已查看最终[桌面](../../docs/design/preview/component-study-desktop.png)、[手机](../../docs/design/preview/component-study-mobile.png)、[详情弹窗](../../docs/design/preview/component-study-dialog.png)及[错误状态](../../docs/design/preview/component-study-error.png)截图。手机截图在新页面加载后拍摄，弹窗截图等待入场动画结束，避免将动画中的临时画面误判为布局问题。
+
+
+## v1.0 · 固定设计基线
+
+用户要求样板直接采用已选风格、结束其他方案展示。本轮将中文细宋、英文及数字 Source Serif 4、紧凑研究、净白纸面、胭脂湖蓝和细线控件统一整理为 DESIGN.md v1.0；当前控件样式纳入基线。页面直接进入研究报告，移除纸面、排版和字体的全部对照 UI、候选配置、相关 CSS 和候选字体导入。研究工具保留，加载及异常状态样张默认折叠。
+
+- [风格与兼容检查](../../docs/design/preview/finalized-design-checks.json)：与修改前的实际页面比较，主标题、正文、英文、指标的字体家族、字重、字号、行高、纸面 token、版心宽度和五个系列色完全相同。CDP 确认中英文标题与指标使用实际加载的自定义字体。
+- 旧暖纸/叠纸、宽松排版、Inter/IBM Plex/Cormorant 和黑体等参数均无法改变样式；旧纸面、排版及三种字体锚点规范化到总览。其他查询参数保留，浏览器历史规范化不重置搜索条件。所有页面内锚点有对应目标。
+- [研究工具回归检查](../../docs/design/preview/finalized-component-checks.json)：筛选、排序、当前筛选全选、部分选择、详情同步、焦点约束及恢复、真实 CSV 内容、空与失败恢复、金额校验和计算均通过；状态区展开后仍能检查全部反馈。
+- 1440 / 1024 / 820 / 768 / 390 / 320px 无整页横向溢出，正文保持 16px；研究工具另覆盖 1280 / 1040 / 640px。portal 弹窗采用相同白纸、12px 圆角及中文字体。
+- 已选字体四份原始许可均可访问；补齐 Alegreya 随站点分发的原始 SIL OFL 文件。浏览器无脚本错误或失败 HTTP 资源。
+- TypeScript 与生产构建通过，`git diff --check` 通过。移除候选模块后样板 JS 从约 647kB 降到约 625kB，保留既有超过 500kB 的构建提示。
+- 已查看最终[总览](../../docs/design/preview/finalized-overview.png)、[图版](../../docs/design/preview/finalized-figure.png)、[研究工具](../../docs/design/preview/finalized-components.png)及[手机](../../docs/design/preview/finalized-mobile.png)截图，首屏及页尾不再显示风格选项。
+
+v0.20 规范及截图索引归档到 `docs/design/history/`，当前 DESIGN.md 只保留现行规则。`web/frontend/AGENTS.md` 引用当前规范，供后续前端任务直接采用。

@@ -1,0 +1,85 @@
+{
+  "checks": [
+    "Three real local font families confirmed via CDP, with title 300 and body 400",
+    "English selection applies to report and mixed text while retaining approved Chinese/numbers, period, amount",
+    "All three options fit at 1024/900/768/560/390/320px",
+    "Refresh persistence and arrow-key/Space selection passed",
+    "All three original font licenses available over HTTP",
+    "Invalid English parameter falls back to B; previous Chinese/numeric deep links still open"
+  ],
+  "renderedFonts": [
+    {
+      "id": "inter",
+      "part": "title",
+      "fonts": [
+        {
+          "familyName": "Inter Light",
+          "postScriptName": "Inter-Light",
+          "isCustomFont": true,
+          "glyphCount": 17
+        }
+      ]
+    },
+    {
+      "id": "inter",
+      "part": "reading",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 113
+        }
+      ]
+    },
+    {
+      "id": "source-serif",
+      "part": "title",
+      "fonts": [
+        {
+          "familyName": "Source Serif 4 Light",
+          "postScriptName": "SourceSerif4-Light",
+          "isCustomFont": true,
+          "glyphCount": 17
+        }
+      ]
+    },
+    {
+      "id": "source-serif",
+      "part": "reading",
+      "fonts": [
+        {
+          "familyName": "Source Serif 4",
+          "postScriptName": "SourceSerif4-Regular",
+          "isCustomFont": true,
+          "glyphCount": 112
+        }
+      ]
+    },
+    {
+      "id": "cormorant",
+      "part": "title",
+      "fonts": [
+        {
+          "familyName": "Cormorant Garamond Light Light",
+          "postScriptName": "CormorantGaramondLight-Light",
+          "isCustomFont": true,
+          "glyphCount": 16
+        }
+      ]
+    },
+    {
+      "id": "cormorant",
+      "part": "reading",
+      "fonts": [
+        {
+          "familyName": "Cormorant Garamond Light",
+          "postScriptName": "CormorantGaramondLight-Regular",
+          "isCustomFont": true,
+          "glyphCount": 112
+        }
+      ]
+    }
+  ],
+  "errors": []
+}
