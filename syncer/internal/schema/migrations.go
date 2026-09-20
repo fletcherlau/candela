@@ -45,6 +45,19 @@ var migrations = [][]string{{
  MODIFY pct_chg DECIMAL(16,4) NULL,
  MODIFY vol DECIMAL(24,4) NULL,
  MODIFY amount DECIMAL(24,4) NULL`,
+}, {
+	`CREATE TABLE IF NOT EXISTS rotation_result (
+ id INT PRIMARY KEY, revision BIGINT NOT NULL DEFAULT 0,
+ status VARCHAR(20) NOT NULL DEFAULT 'pending', message VARCHAR(300) NOT NULL DEFAULT '',
+ payload JSON NULL, updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+	`INSERT IGNORE INTO rotation_result(id) VALUES (1)`,
+	`CREATE TABLE IF NOT EXISTS rotation_coverage (
+ ts_code VARCHAR(20) PRIMARY KEY, through_date CHAR(8) NOT NULL
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+	`CREATE TABLE IF NOT EXISTS rotation_calendar (
+ cal_date CHAR(8) PRIMARY KEY, is_open TINYINT NOT NULL
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }}
 
 func migrate(ctx context.Context, db *sql.DB) error {

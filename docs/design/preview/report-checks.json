@@ -1,0 +1,39 @@
+{
+  "checks": [
+    "Keyboard skip link and visible focus",
+    "Period updates linked metrics",
+    "Drawdown toggle",
+    "Series selection",
+    "Data dialog, Escape, and focus restoration",
+    "Table filtering and empty result",
+    "Table sorting",
+    "Research appendix expands",
+    "Amount calculation and validation",
+    "State selection and CSV export: 43 observations plus header",
+    "Chart hover tooltip",
+    "Responsive layout without page overflow: 1024px",
+    "Responsive layout without page overflow: 820px",
+    "Responsive layout without page overflow: 768px",
+    "Responsive layout without page overflow: 390px",
+    "Responsive layout without page overflow: 320px",
+    "Existing homepage retains original theme",
+    "No browser console errors",
+    "Appendix opens with keyboard Enter",
+    "Final title and layout verified at 1024, 820, 768, 390, 320px",
+    "Heatmap label contrast checked across entire continuous scale"
+  ],
+  "errors": [],
+  "contrast": {
+    "body": 14.79418829624686,
+    "muted": 5.5897954989877965,
+    "control": 3.5342475169299554,
+    "series": [
+      6.245470399570711,
+      4.631812749256866,
+      3.6821393568779426,
+      5.261193087015682,
+      4.130121535928951
+    ],
+    "heatmapLabels": 4.588443158321374
+  }
+}

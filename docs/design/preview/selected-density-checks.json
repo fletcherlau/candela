@@ -1,0 +1,27 @@
+{
+  "checks": [
+    {
+      "query": "",
+      "density": "compact",
+      "status": "已选定：B · 紧凑研究"
+    },
+    {
+      "query": "?density=invalid",
+      "density": "compact",
+      "status": "已选定：B · 紧凑研究"
+    },
+    {
+      "query": "?density=relaxed",
+      "density": "relaxed",
+      "status": "临时对照：A · 舒展阅读，默认仍为 B"
+    }
+  ],
+  "mobileWidths": [
+    390,
+    320
+  ],
+  "chinese": "serif-light",
+  "english": "source-serif",
+  "numbers": "source-serif",
+  "errors": []
+}

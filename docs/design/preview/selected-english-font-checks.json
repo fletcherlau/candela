@@ -1,0 +1,29 @@
+{
+  "checks": [
+    {
+      "query": "",
+      "english": "source-serif",
+      "status": "已选定：B · Source Serif 4"
+    },
+    {
+      "query": "?english=invalid",
+      "english": "source-serif",
+      "status": "已选定：B · Source Serif 4"
+    },
+    {
+      "query": "?english=cormorant",
+      "english": "cormorant",
+      "status": "临时对照：Cormorant Garamond · 默认仍为 B · Source Serif 4"
+    }
+  ],
+  "widths": [
+    1024,
+    390,
+    320
+  ],
+  "titleWeight": 300,
+  "bodyWeight": 400,
+  "chinese": "serif-light",
+  "numbers": "source-serif",
+  "errors": []
+}

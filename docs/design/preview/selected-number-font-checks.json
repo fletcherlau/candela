@@ -1,0 +1,9 @@
+{
+  "checked": [
+    "Missing and invalid query parameters use selected Source Serif 4",
+    "Explicit alternatives remain temporary comparisons",
+    "Report and dialog data values use 14px selected font",
+    "No page overflow at 1024, 768, 390, 320px"
+  ],
+  "errors": []
+}

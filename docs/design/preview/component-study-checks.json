@@ -1,0 +1,165 @@
+{
+  "selectionAndDialog": {
+    "mixedSelectAll": true,
+    "labelTarget": true,
+    "keyboardCheckbox": true,
+    "filteredSelection": true,
+    "dialogSync": true,
+    "focusTrap": true,
+    "escapeRestoresFocus": true,
+    "closeButtonRestoresFocus": true
+  },
+  "sortAndExport": {
+    "ascending": [
+      7.47,
+      10.93,
+      17.26,
+      20.28,
+      22
+    ],
+    "sharedReportPeriod": true,
+    "filename": "candela-demo-6months-selected.csv",
+    "csvRows": 44,
+    "selectedColumns": 1,
+    "valuesMatchVisibleTable": true,
+    "pendingControlsDisabled": true
+  },
+  "states": {
+    "errorAndRetry": true,
+    "keepsFiltersPeriodSelection": true,
+    "emptyAndRestore": true,
+    "searchEmptyAndClear": true,
+    "loadingAndReturn": true,
+    "reducedMotion": true
+  },
+  "form": {
+    "invalidInputFocusAndError": true,
+    "commaSeparatedAmount": true,
+    "enterSubmits": true,
+    "expectedMoney": "111,159.63"
+  },
+  "responsive": [
+    {
+      "width": 1280,
+      "scroll": 1280
+    },
+    {
+      "width": 1040,
+      "scroll": 1040
+    },
+    {
+      "width": 820,
+      "scroll": 820
+    },
+    {
+      "width": 640,
+      "scroll": 640
+    },
+    {
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "width": 320,
+      "scroll": 320
+    }
+  ],
+  "fonts": [
+    {
+      "text": "观察清单",
+      "tag": "H3",
+      "family": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+      "weight": "300"
+    },
+    {
+      "text": "",
+      "tag": "INPUT",
+      "family": "\"Noto Sans SC Variable\", \"PingFang SC\", sans-serif",
+      "weight": "400"
+    },
+    {
+      "text": "+22.00%",
+      "tag": "TD",
+      "family": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "weight": "400"
+    },
+    {
+      "text": "−3.94%",
+      "tag": "TD",
+      "family": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "weight": "400"
+    },
+    {
+      "text": "+20.28%",
+      "tag": "TD",
+      "family": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "weight": "400"
+    },
+    {
+      "text": "−3.14%",
+      "tag": "TD",
+      "family": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "weight": "400"
+    },
+    {
+      "text": "+17.26%",
+      "tag": "TD",
+      "family": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "weight": "400"
+    },
+    {
+      "text": "−5.33%",
+      "tag": "TD",
+      "family": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "weight": "400"
+    }
+  ],
+  "touchTargets": [
+    {
+      "width": 44,
+      "height": 44
+    },
+    {
+      "width": 44,
+      "height": 44
+    },
+    {
+      "width": 44,
+      "height": 44
+    },
+    {
+      "width": 44,
+      "height": 44
+    },
+    {
+      "width": 44,
+      "height": 44
+    },
+    {
+      "width": 44,
+      "height": 44
+    }
+  ],
+  "errors": [],
+  "finalVisualChecks": {
+    "closeButton": {
+      "height": 44,
+      "minHeight": "44px",
+      "border": "rgb(139, 134, 124)",
+      "outline": "rgb(36, 36, 32) solid 2px",
+      "outlineColor": "rgb(36, 36, 32)",
+      "outlineStyle": "solid",
+      "ring": "transparent",
+      "shadow": "none",
+      "focusVisible": true
+    },
+    "errorColor": "rgb(163, 51, 67)",
+    "mobile": {
+      "width": 390,
+      "scroll": 390,
+      "dialogAbsent": true,
+      "screenshotSectionHeight": 1786
+    },
+    "errors": []
+  }
+}

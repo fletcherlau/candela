@@ -1,0 +1,48 @@
+{
+  "checks": [
+    "Actual local Chinese webfonts and 300/400/300 title weights verified",
+    "All title styles and both reading weights apply independently; numeric family and weight, range, and amount retained",
+    "All three styles fit at 1024/900/768/560/390/320px",
+    "Chinese selection and reading weight survive reload",
+    "Arrow keys and Space select Chinese typography",
+    "Original Chinese font licenses shipped and available",
+    "Number study retained; Chinese selection restores the approved numeric font",
+    "Invalid Chinese/reading parameters fall back safely"
+  ],
+  "renderedFonts": [
+    {
+      "id": "serif-light",
+      "fonts": [
+        {
+          "familyName": "Noto Serif SC ExtraLight",
+          "postScriptName": "NotoSerifSC-ExtraLight",
+          "isCustomFont": true,
+          "glyphCount": 13
+        }
+      ]
+    },
+    {
+      "id": "serif-regular",
+      "fonts": [
+        {
+          "familyName": "Noto Serif SC ExtraLight",
+          "postScriptName": "NotoSerifSC-ExtraLight",
+          "isCustomFont": true,
+          "glyphCount": 13
+        }
+      ]
+    },
+    {
+      "id": "sans-light",
+      "fonts": [
+        {
+          "familyName": "Noto Sans SC Thin",
+          "postScriptName": "NotoSansSC-Thin",
+          "isCustomFont": true,
+          "glyphCount": 13
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,117 @@
+[
+  {
+    "status": "fulfilled",
+    "value": {
+      "name": "anthropic",
+      "url": "https://www.anthropic.com/",
+      "navigation": 200,
+      "title": "Home \\ Anthropic",
+      "surfaces": [
+        {
+          "element": "BODY",
+          "class": "",
+          "background": "rgb(250, 249, 245)",
+          "color": "rgb(20, 20, 19)",
+          "border": "0px none rgb(20, 20, 19)",
+          "borderRadius": "0px",
+          "shadow": "none"
+        },
+        {
+          "element": "MAIN",
+          "class": "page_wrap u-bg-ivory-medium",
+          "background": "rgb(240, 238, 230)",
+          "color": "rgb(20, 20, 19)",
+          "border": "0px none rgb(20, 20, 19)",
+          "borderRadius": "0px",
+          "shadow": "none"
+        },
+        {
+          "element": "HEADER",
+          "class": "hero_wrap",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(20, 20, 19)",
+          "border": "0px none rgb(20, 20, 19)",
+          "borderRadius": "0px",
+          "shadow": "none"
+        },
+        {
+          "element": "SECTION",
+          "class": "manatee-cta_section",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(20, 20, 19)",
+          "border": "0px none rgb(20, 20, 19)",
+          "borderRadius": "0px",
+          "shadow": "none"
+        }
+      ]
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "name": "chatgpt",
+      "url": "https://chatgpt.com/",
+      "navigation": 403,
+      "title": "",
+      "surfaces": [
+        {
+          "element": "BODY",
+          "class": "",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(0, 0, 0)",
+          "border": "0px none rgb(0, 0, 0)",
+          "borderRadius": "0px",
+          "shadow": "none"
+        }
+      ],
+      "note": "Browser returned access verification (403); not used as visual evidence. Used official overview image instead."
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "name": "youzhiyouxing",
+      "url": "https://youzhiyouxing.cn/",
+      "navigation": 200,
+      "title": "有知有行",
+      "surfaces": [
+        {
+          "element": "BODY",
+          "class": "\n      tw-bg-bgd-page\n      tw-min-h-screen tw-flex\n      tw-relative tw-pb-52 md:tw-pb-84\n    ",
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(38, 38, 38)",
+          "border": "0px solid rgb(38, 38, 38)",
+          "borderRadius": "0px",
+          "shadow": "none"
+        },
+        {
+          "element": "HEADER",
+          "class": "tw-h-full tw-shadow-medium tw-hidden browser:tw-block tw-bg-bgd-page tw-text-t-light",
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(128, 128, 128)",
+          "border": "0px solid rgb(128, 128, 128)",
+          "borderRadius": "0px",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.06) 0px 3px 16px 0px"
+        },
+        {
+          "element": "SECTION",
+          "class": "tw-bg-bgd-area tw-pt-12 md:tw-pt-5 tw-pb-10",
+          "background": "rgb(250, 250, 250)",
+          "color": "rgb(38, 38, 38)",
+          "border": "0px solid rgb(38, 38, 38)",
+          "borderRadius": "0px",
+          "shadow": "none"
+        },
+        {
+          "element": "DIV",
+          "class": "tw-relative\n        tw-bg-white tw-shadow-card\n        tw-p-7.5 md:tw-p-2.5 tw-z-10\n        tw-text-justify",
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(38, 38, 38)",
+          "border": "0px solid rgb(38, 38, 38)",
+          "borderRadius": "0px",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.08) 0px 4px 6px 0px"
+        }
+      ]
+    }
+  }
+]

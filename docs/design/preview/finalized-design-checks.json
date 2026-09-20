@@ -1,0 +1,147 @@
+{
+  "approvedAppearancePreserved": {
+    "tokens": {
+      "--canvas": "#FFFFFF",
+      "--paper": "#FFFFFF",
+      "--paper-soft": "#F3F3F3",
+      "--paper-edge": "#DEDEDE",
+      "--paper-radius": "12px",
+      "--paper-shadow": "none",
+      "--ink": "#242420",
+      "--number-font": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "--english-font": "\"Source Serif 4\", serif",
+      "--display-font": "\"Noto Serif SC Variable\", \"Songti SC\", serif"
+    },
+    "title": {
+      "family": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+      "weight": "300",
+      "size": "36px",
+      "lineHeight": "54px",
+      "text": "四标的轮动：收益与回撤的观察。"
+    },
+    "body": {
+      "family": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+      "weight": "400",
+      "size": "16px",
+      "lineHeight": "28.8px",
+      "text": "一项策略的表现，不止于终点的收益。我们将收益 return、月度变化与回撤 drawdown 放在同一份观察中，理解数字如何随时间展开。"
+    },
+    "english": {
+      "family": "\"Source Serif 4\", serif",
+      "weight": "300",
+      "size": "30px",
+      "lineHeight": "39px",
+      "text": "Understanding returns.Living with risk."
+    },
+    "metric": {
+      "family": "\"Source Serif 4\", \"Noto Sans SC Variable\", serif",
+      "weight": "400",
+      "size": "36px",
+      "lineHeight": "43.2px",
+      "text": "+17.26%"
+    },
+    "shell": 1280,
+    "series": [
+      "--series-color: #C4435B;",
+      "--series-color: #287E9A;",
+      "--series-color: #927A29;",
+      "--series-color: #75629E;",
+      "--series-color: #3E8A72;"
+    ]
+  },
+  "actualFonts": {
+    "h1": [
+      {
+        "familyName": "Noto Serif SC ExtraLight",
+        "postScriptName": "NotoSerifSC-ExtraLight",
+        "isCustomFont": true,
+        "glyphCount": 15
+      }
+    ],
+    ".report-english-title": [
+      {
+        "familyName": "Source Serif 4 Light",
+        "postScriptName": "SourceSerif4-Light",
+        "isCustomFont": true,
+        "glyphCount": 39
+      }
+    ],
+    ".metric-number": [
+      {
+        "familyName": "Source Serif 4",
+        "postScriptName": "SourceSerif4-Regular",
+        "isCustomFont": true,
+        "glyphCount": 7
+      }
+    ]
+  },
+  "retiredUrls": [
+    {
+      "requested": "?paper=warm&density=relaxed&chinese=sans-light&english=cormorant&numbers=inter&reading=300&theme=yellow&ref=keep#paper-surfaces",
+      "normalized": "?ref=keep#overview"
+    },
+    {
+      "requested": "?paper=layered&numbers=plex#number-fonts",
+      "normalized": "#overview"
+    },
+    {
+      "requested": "?english=inter&chinese=serif-regular#chinese-fonts",
+      "normalized": "#overview"
+    },
+    {
+      "requested": "?density=relaxed#layout-density",
+      "normalized": "#overview"
+    },
+    {
+      "requested": "?english=cormorant#english-fonts",
+      "normalized": "#overview"
+    }
+  ],
+  "historyKeepsBusinessState": true,
+  "portalTheme": {
+    "paper": "#FFFFFF",
+    "font": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+    "radius": "12px"
+  },
+  "responsive": [
+    {
+      "width": 1440,
+      "scroll": 1440,
+      "bodyFont": "16px"
+    },
+    {
+      "width": 1024,
+      "scroll": 1024,
+      "bodyFont": "16px"
+    },
+    {
+      "width": 820,
+      "scroll": 820,
+      "bodyFont": "16px"
+    },
+    {
+      "width": 768,
+      "scroll": 768,
+      "bodyFont": "16px"
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "bodyFont": "16px"
+    },
+    {
+      "width": 320,
+      "scroll": 320,
+      "bodyFont": "16px"
+    }
+  ],
+  "licenses": [
+    "noto-serif-sc",
+    "noto-sans-sc",
+    "source-serif-4",
+    "alegreya"
+  ],
+  "alternativesRemoved": true,
+  "errors": [],
+  "badRequests": []
+}

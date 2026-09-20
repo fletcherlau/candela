@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "blue: theme, chart, dialog, labels, URL and current inputs preserved",
+    "pine: theme, chart, dialog, labels, URL and current inputs preserved",
+    "clay: theme, chart, dialog, labels, URL and current inputs preserved",
+    "Selected theme survives reload",
+    "Theme selector keyboard navigation",
+    "blue: direct link, 768/390/320px and 44px theme controls",
+    "pine: direct link, 768/390/320px and 44px theme controls",
+    "clay: direct link, 768/390/320px and 44px theme controls",
+    "Invalid theme falls back to blue"
+  ],
+  "errors": []
+}

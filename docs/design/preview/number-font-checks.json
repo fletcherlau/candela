@@ -1,0 +1,47 @@
+{
+  "checks": [
+    "All three specimens render their actual webfont; tabular digit widths verified",
+    "Three choices apply to metrics, numeric inputs, chart ticks, and data dialog; period and amount retained",
+    "Every candidate has no page overflow at 1024, 820, 768, 390, 320px",
+    "Selected font survives reload via query parameter",
+    "Keyboard arrow navigation and Space selection",
+    "All font licenses shipped and accessible",
+    "Invalid query value falls back to Inter"
+  ],
+  "renderedFonts": [
+    {
+      "id": "inter",
+      "fonts": [
+        {
+          "familyName": "Inter",
+          "postScriptName": "Inter-Regular",
+          "isCustomFont": true,
+          "glyphCount": 6
+        }
+      ]
+    },
+    {
+      "id": "plex",
+      "fonts": [
+        {
+          "familyName": "IBM Plex Sans",
+          "postScriptName": "IBMPlexSans-Regular",
+          "isCustomFont": true,
+          "glyphCount": 6
+        }
+      ]
+    },
+    {
+      "id": "source-serif",
+      "fonts": [
+        {
+          "familyName": "Source Serif 4",
+          "postScriptName": "SourceSerif4-Regular",
+          "isCustomFont": true,
+          "glyphCount": 6
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

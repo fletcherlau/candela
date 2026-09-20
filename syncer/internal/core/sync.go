@@ -100,6 +100,8 @@ type Result struct {
 	success bool // 供 Summary 计数，不随 JSON 暴露
 }
 
+func (r Result) Succeeded() bool { return r.success }
+
 // Summary 是一次同步触发的整体结果。
 type Summary struct {
 	Total   int      `json:"total"`
@@ -108,9 +110,17 @@ type Summary struct {
 }
 
 // Syncer 编排增量同步。零值不可用，用 NewSyncer 构造。
+// SyncObserver coordinates publication with all ETF synchronization entrypoints.
+type SyncObserver interface {
+	BeginSync(context.Context, []string) (func(Summary), error)
+}
+
+func (s *Syncer) SetObserver(observer SyncObserver) { s.observer = observer }
+
 type Syncer struct {
-	source QuoteSource
-	store  Store
+	observer SyncObserver
+	source   QuoteSource
+	store    Store
 
 	chunkDays        int
 	defaultStartDate string
@@ -141,7 +151,21 @@ func (s *Syncer) Run(ctx context.Context, tsCodes []string) Summary {
 		return Summary{Results: []Result{{Message: err.Error()}}}
 	}
 
+	codes := make([]string, 0, len(instruments))
+	for _, inst := range instruments {
+		codes = append(codes, inst.TsCode)
+	}
+	var finish func(Summary)
+	if s.observer != nil {
+		finish, err = s.observer.BeginSync(ctx, codes)
+		if err != nil {
+			return Summary{Total: len(instruments), Results: []Result{{Message: "同步协调暂不可用，请稍后重试"}}}
+		}
+	}
 	sum := Summary{Total: len(instruments)}
+	if finish != nil {
+		defer func() { finish(sum) }()
+	}
 	for _, inst := range instruments {
 		res := s.syncOne(ctx, inst.TsCode)
 		if res.success {

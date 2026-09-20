@@ -1,0 +1,54 @@
+{
+  "checks": [
+    "A/B changes scale and spacing, preserves font families/weights and color tokens",
+    "Period, chart mode, series visibility, filter, amount and numeric results survive switching",
+    "Charts resize to new containers; both densities fit 1024/820/768/520/390/320px; mobile body stays 16px",
+    "Refresh, keyboard and popstate sync passed",
+    "Invalid density falls back to A; all previous font deep links still expand"
+  ],
+  "sizes": {
+    "relaxed": {
+      "shell": 1160,
+      "title": "46px",
+      "body": "18px",
+      "line": "35.1px",
+      "titleWeight": "300",
+      "bodyWeight": "400",
+      "fonts": [
+        "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "\"Source Serif 4\", serif",
+        "\"Source Serif 4\", \"Noto Sans SC Variable\", serif"
+      ],
+      "colors": [
+        "#FAF9F6",
+        "#FFFCF5",
+        "#242420",
+        "#DAD6CC"
+      ],
+      "chartHeight": 330,
+      "tablePadding": "16px"
+    },
+    "compact": {
+      "shell": 1280,
+      "title": "36px",
+      "body": "16px",
+      "line": "28.8px",
+      "titleWeight": "300",
+      "bodyWeight": "400",
+      "fonts": [
+        "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "\"Source Serif 4\", serif",
+        "\"Source Serif 4\", \"Noto Sans SC Variable\", serif"
+      ],
+      "colors": [
+        "#FAF9F6",
+        "#FFFCF5",
+        "#242420",
+        "#DAD6CC"
+      ],
+      "chartHeight": 300,
+      "tablePadding": "10px"
+    }
+  },
+  "errors": []
+}
