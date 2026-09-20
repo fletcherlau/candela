@@ -1,0 +1,62 @@
+{
+  "checks": [
+    "Default and invalid paper select approved B; A/C show temporary comparison and retain approved B status.",
+    "Approved fonts and compact density preserved; B uses white canvas/paper, 12px corners and no card shadow.",
+    "B survives reload; selected status remains visible and no page overflow at 1024/768/390/320px. Sticky bar fits anchor offset."
+  ],
+  "samples": [
+    {
+      "query": "",
+      "label": "已选定：B · 净白留白",
+      "paper": "white",
+      "density": "compact",
+      "chinese": "serif-light",
+      "english": "source-serif",
+      "numbers": "source-serif",
+      "canvas": "#FFFFFF",
+      "background": "rgb(255, 255, 255)",
+      "radius": "12px",
+      "shadow": "none"
+    },
+    {
+      "query": "?paper=invalid",
+      "label": "已选定：B · 净白留白",
+      "paper": "white",
+      "density": "compact",
+      "chinese": "serif-light",
+      "english": "source-serif",
+      "numbers": "source-serif",
+      "canvas": "#FFFFFF",
+      "background": "rgb(255, 255, 255)",
+      "radius": "12px",
+      "shadow": "none"
+    },
+    {
+      "query": "?paper=warm",
+      "label": "临时对照：A · 暖纸书页，默认 B",
+      "paper": "warm",
+      "density": "compact",
+      "chinese": "serif-light",
+      "english": "source-serif",
+      "numbers": "source-serif",
+      "canvas": "#F0EEE6",
+      "background": "rgb(250, 249, 245)",
+      "radius": "4px",
+      "shadow": "none"
+    },
+    {
+      "query": "?paper=layered",
+      "label": "临时对照：C · 轻叠纸页，默认 B",
+      "paper": "layered",
+      "density": "compact",
+      "chinese": "serif-light",
+      "english": "source-serif",
+      "numbers": "source-serif",
+      "canvas": "#F5F6F7",
+      "background": "rgb(255, 255, 255)",
+      "radius": "2px",
+      "shadow": "rgba(38, 43, 48, 0.04) 0px 2px 4px 0px, rgba(38, 43, 48, 0.13) 0px 8px 20px -8px"
+    }
+  ],
+  "errors": []
+}

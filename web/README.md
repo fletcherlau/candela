@@ -52,3 +52,7 @@ CATALOG_TEST_DSN='root@tcp(127.0.0.1:13316)/candela_catalog_test?parseTime=true'
 ```
 
 未配置测试 DSN 时该集成测试跳过。测试会清理专用库的数据，禁止指向生产库。网站单元测试不依赖 Cloudflare 网络，使用本地 JWKS 和真实 RSA 签名验证拒绝路径。
+
+## 四标的轮动
+
+`/strategies/four-etf-rotation` 展示默认近一年的策略回测、回撤与仓位，支持缩放和四 ETF 对照。`GET /api/rotation/backtest` 只读转发 syncer 的已发布结果，沿用 Access。计算、自动更新、验证和回退见 [四标的轮动发布说明](../docs/deployments/four-etf-rotation.md)。

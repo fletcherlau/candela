@@ -16,6 +16,7 @@ import (
 	"syncer/internal/config"
 	"syncer/internal/core"
 	"syncer/internal/handler"
+	"syncer/internal/rotation"
 	"syncer/internal/schema"
 	"syncer/internal/store"
 	"syncer/internal/svc"
@@ -29,9 +30,10 @@ import (
 )
 
 var (
-	configFile = flag.String("f", "etc/syncer-api.yaml", "the config file")
-	once       = flag.Bool("once", false, "run a one-shot sync for all sync-enabled instruments and exit")
-	onceSW     = flag.Bool("once-sw", false, "run a one-shot sync for SW industry dictionary, membership and index daily, then exit")
+	rotationRefresh = flag.Bool("rotation-refresh", false, "sync the four ETFs and publish historical rotation results")
+	configFile      = flag.String("f", "etc/syncer-api.yaml", "the config file")
+	once            = flag.Bool("once", false, "run a one-shot sync for all sync-enabled instruments and exit")
+	onceSW          = flag.Bool("once-sw", false, "run a one-shot sync for SW industry dictionary, membership and index daily, then exit")
 )
 
 func main() {
@@ -79,12 +81,28 @@ func main() {
 	// 盘中信号：gtimg 实时行情 + 库内日线，分位窗口与 today 用默认值。
 	signalComputer := core.NewSignalComputer(newGtimgSource(""), st, 0, nil)
 
+	rotationService := &rotation.Service{DB: db, Calendar: &rotationCalendar{client: tushareClient}}
+	syncer.SetObserver(rotationService)
+	if *rotationRefresh {
+		sum := syncer.Run(context.Background(), core.RotationCodes)
+		if sum.Success != sum.Total {
+			log.Fatal("four ETF sync incomplete")
+		}
+		if err := rotationService.Refresh(context.Background()); err != nil {
+			log.Fatal("rotation refresh failed")
+		}
+		fmt.Println("Four ETF synchronization and rotation refresh finished")
+		return
+	}
 	if *once {
 		sum := syncer.Run(context.Background(), nil)
 		out, _ := json.MarshalIndent(sum, "", "  ")
 		fmt.Println(string(out))
 		if sum.Success != sum.Total {
 			log.Fatalf("one-shot sync incomplete: %d/%d succeeded", sum.Success, sum.Total)
+		}
+		if err := rotationService.Refresh(context.Background()); err != nil {
+			log.Print("rotation refresh remains pending")
 		}
 		return
 	}
@@ -111,6 +129,7 @@ func main() {
 	svcCtx := svc.NewServiceContext(c, syncer, swSyncer, signalComputer, st, st)
 	handler.RegisterHandlers(server, svcCtx)
 	handler.RegisterCatalog(server, svcCtx, st)
+	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/backtest", Handler: svcCtx.ApiKeyAuth(rotationService.Handler().ServeHTTP)})
 	runStore := syncrun.NewStore(db)
 	for _, route := range []rest.Route{
 		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
@@ -120,6 +139,9 @@ func main() {
 		server.AddRoute(route)
 	}
 	workerCtx, stopWorker := context.WithCancel(context.Background())
+	rotationDone := make(chan struct{})
+	go func() { defer close(rotationDone); rotationService.Serve(workerCtx) }()
+	defer func() { stopWorker(); <-rotationDone }()
 	workerDone := make(chan struct{})
 	go func() {
 		defer close(workerDone)

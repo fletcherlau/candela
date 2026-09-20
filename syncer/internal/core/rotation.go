@@ -29,6 +29,8 @@ const (
 // DailyBarAdj 是读取侧的日线视图：Raw Daily Bar 的 OHLC 加上对齐后的 Adjustment Factor。
 // 因子取 trade_date <= 当日的最近一条（两表日期可能不对齐，见 CONTEXT.md）。
 type DailyBarAdj struct {
+	// Suspended marks a verified non-trading day; only Close is a carried valuation, not an OHLC quote.
+	Suspended bool
 	TradeDate string // YYYYMMDD
 	Open      float64
 	High      float64

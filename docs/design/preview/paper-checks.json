@@ -1,0 +1,204 @@
+{
+  "checks": [
+    "All three surface variants synchronize both selectors, URL, report cards, dialogs and chart tooltip surfaces.",
+    "Switching preserves period, drawdown mode, series visibility, asset filter, amount, numeric metrics and exact SVG data paths.",
+    "Approved type families/weights/scales and compact density stay fixed; series colors and flat metric layout stay fixed.",
+    "Refresh, keyboard arrow/Space selection, popstate and invalid-parameter fallback pass; A is trial default only.",
+    "Historical density and font deep links remain accessible. Selecting a surface restores finalized type and compact density from historical trials.",
+    "Muted text on every paper/soft/canvas >=4.5:1; controls against surrounding canvas/paper and all data curves >=3:1."
+  ],
+  "variants": [
+    {
+      "paper": "warm",
+      "density": "compact",
+      "tokens": {
+        "--canvas": "#F0EEE6",
+        "--paper": "#FAF9F5",
+        "--paper-soft": "#E8E5DB",
+        "--ink": "#242420",
+        "--ink-muted": "#69665F",
+        "--control-border": "#8B867C",
+        "--paper-radius": "4px",
+        "--paper-shadow": "none"
+      },
+      "fonts": [
+        "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "\"Source Serif 4\", serif",
+        "\"Source Serif 4\", \"Noto Sans SC Variable\", serif"
+      ],
+      "titleSize": "36px",
+      "titleWeight": "300",
+      "bodySize": "16px",
+      "bodyWeight": "400",
+      "series": [
+        "rgb(169, 47, 101)",
+        "rgb(8, 127, 140)",
+        "rgb(173, 122, 12)",
+        "rgb(88, 101, 175)",
+        "rgb(192, 96, 51)"
+      ],
+      "paths": [
+        {
+          "color": "#A92F65",
+          "path": "M48 18L70.4286 18L92.8571 18L115.2857 18L137.7143 18L160.1429 18L182.5714 18L205 18L227.4286 18L249.8571 61L272.2857 90.375L294.7143 41.875L317.1429 71.375L339.5714 114.25L362 109.875L384.4286 18.625L406.8571 18L429.2857 18L451.7143 18L474.1429 18L496.5714 18L519 18L541.4286 18L563.8571 18L586.2857 18L608.7143 18L631.1429 18L653.5714 18L676 18L698.4286 22.5L720.8571 74.375L743.2857 112.75L765.7143 73.25L788.1429 111.625L810.5714 163.5L833 168L855.4286 96.625L877.8571 72L900.2857 34L922.7143 18L945.1429 18L967.5714 18L990 18"
+        },
+        {
+          "color": "#087F8C",
+          "path": "M48 18L70.4286 18L92.8571 104.375L115.2857 163.25L137.7143 64L160.1429 122.875L182.5714 209.375L205 199.5L227.4286 160.375L249.8571 216L272.2857 244.625L294.7143 117.25L317.1429 145.75L339.5714 201.5L362 162.25L384.4286 93.125L406.8571 119.25L429.2857 118L451.7143 18L474.1429 18L496.5714 44L519 18L541.4286 18L563.8571 57.625L586.2857 69.875L608.7143 18L631.1429 30.125L653.5714 69.5L676 18L698.4286 18L720.8571 69.25L743.2857 92.875L765.7143 18L788.1429 41.625L810.5714 92.625L833 48L855.4286 27.125L877.8571 102.375L900.2857 150L922.7143 39.875L945.1429 87.5L967.5714 162.75L990 141.875"
+        }
+      ],
+      "flatMetrics": {
+        "background": "rgba(0, 0, 0, 0)",
+        "shadow": "none"
+      },
+      "dialog": {
+        "background": "rgb(250, 249, 245)",
+        "border": "rgb(216, 212, 202)",
+        "radius": "4px",
+        "overflow": false
+      },
+      "tooltip": [
+        {
+          "background": "rgb(250, 249, 245)",
+          "border": "rgb(216, 212, 202)",
+          "text": "2025-08-16\n四标的轮动\n-0.19%\n红利 ETF\n-0.79%"
+        }
+      ]
+    },
+    {
+      "paper": "white",
+      "density": "compact",
+      "tokens": {
+        "--canvas": "#FFFFFF",
+        "--paper": "#FFFFFF",
+        "--paper-soft": "#F3F3F3",
+        "--ink": "#242420",
+        "--ink-muted": "#69665F",
+        "--control-border": "#8B867C",
+        "--paper-radius": "12px",
+        "--paper-shadow": "none"
+      },
+      "fonts": [
+        "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "\"Source Serif 4\", serif",
+        "\"Source Serif 4\", \"Noto Sans SC Variable\", serif"
+      ],
+      "titleSize": "36px",
+      "titleWeight": "300",
+      "bodySize": "16px",
+      "bodyWeight": "400",
+      "series": [
+        "rgb(169, 47, 101)",
+        "rgb(8, 127, 140)",
+        "rgb(173, 122, 12)",
+        "rgb(88, 101, 175)",
+        "rgb(192, 96, 51)"
+      ],
+      "paths": [
+        {
+          "color": "#A92F65",
+          "path": "M48 18L70.4286 18L92.8571 18L115.2857 18L137.7143 18L160.1429 18L182.5714 18L205 18L227.4286 18L249.8571 61L272.2857 90.375L294.7143 41.875L317.1429 71.375L339.5714 114.25L362 109.875L384.4286 18.625L406.8571 18L429.2857 18L451.7143 18L474.1429 18L496.5714 18L519 18L541.4286 18L563.8571 18L586.2857 18L608.7143 18L631.1429 18L653.5714 18L676 18L698.4286 22.5L720.8571 74.375L743.2857 112.75L765.7143 73.25L788.1429 111.625L810.5714 163.5L833 168L855.4286 96.625L877.8571 72L900.2857 34L922.7143 18L945.1429 18L967.5714 18L990 18"
+        },
+        {
+          "color": "#087F8C",
+          "path": "M48 18L70.4286 18L92.8571 104.375L115.2857 163.25L137.7143 64L160.1429 122.875L182.5714 209.375L205 199.5L227.4286 160.375L249.8571 216L272.2857 244.625L294.7143 117.25L317.1429 145.75L339.5714 201.5L362 162.25L384.4286 93.125L406.8571 119.25L429.2857 118L451.7143 18L474.1429 18L496.5714 44L519 18L541.4286 18L563.8571 57.625L586.2857 69.875L608.7143 18L631.1429 30.125L653.5714 69.5L676 18L698.4286 18L720.8571 69.25L743.2857 92.875L765.7143 18L788.1429 41.625L810.5714 92.625L833 48L855.4286 27.125L877.8571 102.375L900.2857 150L922.7143 39.875L945.1429 87.5L967.5714 162.75L990 141.875"
+        }
+      ],
+      "flatMetrics": {
+        "background": "rgba(0, 0, 0, 0)",
+        "shadow": "none"
+      },
+      "dialog": {
+        "background": "rgb(255, 255, 255)",
+        "border": "rgb(222, 222, 222)",
+        "radius": "12px",
+        "overflow": false
+      },
+      "tooltip": [
+        {
+          "background": "rgb(255, 255, 255)",
+          "border": "rgb(222, 222, 222)",
+          "text": "2025-08-16\n四标的轮动\n-0.19%\n红利 ETF\n-0.79%"
+        }
+      ]
+    },
+    {
+      "paper": "layered",
+      "density": "compact",
+      "tokens": {
+        "--canvas": "#F5F6F7",
+        "--paper": "#FFFFFF",
+        "--paper-soft": "#EBEEF0",
+        "--ink": "#242420",
+        "--ink-muted": "#69665F",
+        "--control-border": "#8B867C",
+        "--paper-radius": "2px",
+        "--paper-shadow": "0 2px 4px rgb(38 43 48 / 4%), 0 8px 20px -8px rgb(38 43 48 / 13%)"
+      },
+      "fonts": [
+        "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "\"Source Serif 4\", serif",
+        "\"Source Serif 4\", \"Noto Sans SC Variable\", serif"
+      ],
+      "titleSize": "36px",
+      "titleWeight": "300",
+      "bodySize": "16px",
+      "bodyWeight": "400",
+      "series": [
+        "rgb(169, 47, 101)",
+        "rgb(8, 127, 140)",
+        "rgb(173, 122, 12)",
+        "rgb(88, 101, 175)",
+        "rgb(192, 96, 51)"
+      ],
+      "paths": [
+        {
+          "color": "#A92F65",
+          "path": "M48 18L70.4286 18L92.8571 18L115.2857 18L137.7143 18L160.1429 18L182.5714 18L205 18L227.4286 18L249.8571 61L272.2857 90.375L294.7143 41.875L317.1429 71.375L339.5714 114.25L362 109.875L384.4286 18.625L406.8571 18L429.2857 18L451.7143 18L474.1429 18L496.5714 18L519 18L541.4286 18L563.8571 18L586.2857 18L608.7143 18L631.1429 18L653.5714 18L676 18L698.4286 22.5L720.8571 74.375L743.2857 112.75L765.7143 73.25L788.1429 111.625L810.5714 163.5L833 168L855.4286 96.625L877.8571 72L900.2857 34L922.7143 18L945.1429 18L967.5714 18L990 18"
+        },
+        {
+          "color": "#087F8C",
+          "path": "M48 18L70.4286 18L92.8571 104.375L115.2857 163.25L137.7143 64L160.1429 122.875L182.5714 209.375L205 199.5L227.4286 160.375L249.8571 216L272.2857 244.625L294.7143 117.25L317.1429 145.75L339.5714 201.5L362 162.25L384.4286 93.125L406.8571 119.25L429.2857 118L451.7143 18L474.1429 18L496.5714 44L519 18L541.4286 18L563.8571 57.625L586.2857 69.875L608.7143 18L631.1429 30.125L653.5714 69.5L676 18L698.4286 18L720.8571 69.25L743.2857 92.875L765.7143 18L788.1429 41.625L810.5714 92.625L833 48L855.4286 27.125L877.8571 102.375L900.2857 150L922.7143 39.875L945.1429 87.5L967.5714 162.75L990 141.875"
+        }
+      ],
+      "flatMetrics": {
+        "background": "rgba(0, 0, 0, 0)",
+        "shadow": "none"
+      },
+      "dialog": {
+        "background": "rgb(255, 255, 255)",
+        "border": "rgb(228, 231, 234)",
+        "radius": "2px",
+        "overflow": false
+      },
+      "tooltip": [
+        {
+          "background": "rgb(255, 255, 255)",
+          "border": "rgb(228, 231, 234)",
+          "text": "2025-08-16\n四标的轮动\n-0.19%\n红利 ETF\n-0.79%"
+        }
+      ]
+    }
+  ],
+  "contrasts": [
+    {
+      "paper": "warm",
+      "minimumMutedText": 4.544397015922636,
+      "minimumControlBoundary": 3.1174127896291433,
+      "minimumCurve": 3.5813321174834805
+    },
+    {
+      "paper": "white",
+      "minimumMutedText": 5.161781724651898,
+      "minimumControlBoundary": 3.621389197105145,
+      "minimumCurve": 3.7729275115446703
+    },
+    {
+      "paper": "layered",
+      "minimumMutedText": 4.914979918726359,
+      "minimumControlBoundary": 3.3468331300596366,
+      "minimumCurve": 3.7729275115446703
+    }
+  ],
+  "errors": []
+}

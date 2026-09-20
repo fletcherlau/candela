@@ -1,0 +1,47 @@
+{
+  "normal": [
+    {
+      "width": 1.6,
+      "stroke": "#A92F65"
+    },
+    {
+      "width": 1.2,
+      "stroke": "#087F8C"
+    },
+    {
+      "width": 1.2,
+      "stroke": "#AD7A0C"
+    }
+  ],
+  "hover": [
+    {
+      "width": 1.6,
+      "stroke": "rgb(185,51,111)"
+    },
+    {
+      "width": 1.2,
+      "stroke": "rgb(8,139,154)"
+    },
+    {
+      "width": 1.2,
+      "stroke": "rgb(190,134,13)"
+    }
+  ],
+  "iconWidths": [
+    "1.5px"
+  ],
+  "dialogIcons": [
+    "1.5px"
+  ],
+  "responsive": [
+    {
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "width": 320,
+      "scroll": 320
+    }
+  ],
+  "errors": []
+}
