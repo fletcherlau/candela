@@ -114,7 +114,7 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/research":
 		http.Redirect(w, r, "/", http.StatusFound)
 	case "/", "/market", "/admin", "/admin/data", "/strategies/four-etf-rotation":
-		a.file(w, r, a.cfg.Static, "index.html")
+		a.frontend(w, r)
 	default:
 		if strings.HasPrefix(r.URL.Path, "/assets/") && fs.ValidPath(strings.TrimPrefix(r.URL.Path, "/")) {
 			a.file(w, r, a.cfg.Static, strings.TrimPrefix(r.URL.Path, "/"))
@@ -136,6 +136,30 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		http.NotFound(w, r)
 	}
+}
+
+// Radix's modal scroll lock creates a style element. Authorize that style with
+// a fresh response nonce while retaining the strict script policy and Access guard.
+func (a *application) frontend(w http.ResponseWriter, r *http.Request) {
+	body, err := fs.ReadFile(a.cfg.Static, "index.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	value := make([]byte, 24)
+	if _, err := rand.Read(value); err != nil {
+		http.Error(w, "无法打开页面。", http.StatusInternalServerError)
+		return
+	}
+	nonce := base64.RawStdEncoding.EncodeToString(value)
+	policy := w.Header().Get("Content-Security-Policy")
+	w.Header().Set("Content-Security-Policy", strings.Replace(policy, "style-src 'self'", "style-src 'self' 'nonce-"+nonce+"'", 1))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if r.Method == http.MethodHead {
+		return
+	}
+	meta := `<meta name="candela-style-nonce" content="` + nonce + `">`
+	io.WriteString(w, strings.Replace(string(body), "</head>", meta+"</head>", 1))
 }
 
 func (a *application) file(w http.ResponseWriter, r *http.Request, files fs.FS, name string) {

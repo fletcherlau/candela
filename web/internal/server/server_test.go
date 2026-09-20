@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -74,7 +75,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 		io.WriteString(w, `{"groups":[{"id":"etf","items":[]}]}`)
 	}))
 	defer upstream.Close()
-	app, err := server.New(context.Background(), server.Config{Issuer: jwks.URL, Audience: "demo-app", Origin: "https://demo.candlea.cn", SyncerURL: upstream.URL, APIKey: "server-only-secret", Static: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("Candela market overview")}}})
+	app, err := server.New(context.Background(), server.Config{Issuer: jwks.URL, Audience: "demo-app", Origin: "https://demo.candlea.cn", SyncerURL: upstream.URL, APIKey: "server-only-secret", Static: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html><head></head><body>Candela market overview</body></html>")}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +108,24 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			t.Fatalf("authorized %s: %d %s", path, rec.Code, rec.Body.String())
 		}
 	}
+	t.Run("frontend style nonce is unique and does not relax scripts", func(t *testing.T) {
+		previous := ""
+		for i := 0; i < 2; i++ {
+			req := httptest.NewRequest(http.MethodGet, "/strategies/four-etf-rotation", nil)
+			req.Header.Set("Cf-Access-Jwt-Assertion", valid)
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, req)
+			match := regexp.MustCompile(`name="candela-style-nonce" content="([A-Za-z0-9+/]+)"`).FindStringSubmatch(rec.Body.String())
+			if len(match) != 2 || match[1] == previous {
+				t.Fatal("missing or reused style nonce")
+			}
+			policy := rec.Header().Get("Content-Security-Policy")
+			if !strings.Contains(policy, "style-src 'self' 'nonce-"+match[1]+"'") || !strings.Contains(policy, "script-src 'self';") || strings.Contains(policy, "unsafe-inline") {
+				t.Fatal("unexpected frontend CSP", policy)
+			}
+			previous = match[1]
+		}
+	})
 	t.Run("backtest upstream failure is sanitized", func(t *testing.T) {
 		syncFailure.Store(true)
 		defer syncFailure.Store(false)

@@ -50,7 +50,7 @@ test.describe("rotation history", () => {
     await expect(page.getByTestId("rotation-detail")).toContainText(
       "现金 30.00%",
     );
-    await page.getByRole("button", { name: "全部", exact: true }).click();
+    await page.getByRole("radio", { name: "全部", exact: true }).click();
     await expect(dateStart).toHaveValue("2024-10-01");
     const chart = page.getByRole("img", { name: "策略与 ETF 累计收益图" });
     const box = await chart.boundingBox();
@@ -60,7 +60,7 @@ test.describe("rotation history", () => {
     await page.mouse.move(box.x + box.width * 0.65, box.y + 80);
     await page.mouse.up();
     expect(await dateStart.inputValue()).not.toBe("2024-10-01");
-    await page.getByRole("button", { name: "近一年", exact: true }).click();
+    await page.getByRole("radio", { name: "近一年", exact: true }).click();
     await expect(dateStart).toHaveValue(initialStart);
     await expect(dateEnd).toHaveValue(initialEnd);
     await page.screenshot({

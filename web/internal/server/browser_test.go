@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -22,6 +23,21 @@ import (
 func TestBrowserHarness(t *testing.T) {
 	if os.Getenv("CANDELA_BROWSER_TEST") != "1" {
 		t.Skip("browser harness is opt-in")
+	}
+	previewFile := os.Getenv("CANDELA_PREVIEW_RESULT")
+	address := "127.0.0.1:18081"
+	tokenFile := "/tmp/candela-browser-test-token"
+	lifetime := time.Hour
+	var published []byte
+	if previewFile != "" {
+		address = "127.0.0.1:18083"
+		tokenFile = "/tmp/candela-rotation-preview-token"
+		lifetime = 24 * time.Hour
+		var err error
+		published, err = os.ReadFile(previewFile)
+		if err != nil || !json.Valid(published) {
+			t.Fatal("preview requires an existing valid published-result JSON snapshot")
+		}
 	}
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -35,6 +51,10 @@ func TestBrowserHarness(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/api/v1/rotation/backtest" {
+			if previewFile != "" {
+				w.Write(published)
+				return
+			}
 			rows := []map[string]any{}
 			codes := []string{"510880.SH", "518880.SH", "159915.SZ", "513100.SH"}
 			for i := 0; i < 700; i++ {
@@ -52,21 +72,60 @@ func TestBrowserHarness(t *testing.T) {
 	}))
 	defer upstream.Close()
 	enc := func(v any) string { b, _ := json.Marshal(v); return base64.RawURLEncoding.EncodeToString(b) }
-	msg := enc(map[string]any{"alg": "RS256", "kid": "browser"}) + "." + enc(map[string]any{"iss": jwks.URL, "aud": []string{"browser-test"}, "sub": "fixture", "exp": time.Now().Add(time.Hour).Unix()})
+	msg := enc(map[string]any{"alg": "RS256", "kid": "browser"}) + "." + enc(map[string]any{"iss": jwks.URL, "aud": []string{"browser-test"}, "sub": "fixture", "exp": time.Now().Add(lifetime).Unix()})
 	hash := sha256.Sum256([]byte(msg))
 	sig, _ := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, hash[:])
 	token := msg + "." + base64.RawURLEncoding.EncodeToString(sig)
-	if err := os.WriteFile("/tmp/candela-browser-test-token", []byte(token), 0600); err != nil {
+	if err := os.WriteFile(tokenFile, []byte(token), 0600); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove("/tmp/candela-browser-test-token")
+	defer os.Remove(tokenFile)
 	upstreamURL := upstream.URL
 	if os.Getenv("CANDELA_SYNC_BROWSER_TEST") == "1" {
 		upstreamURL = "http://127.0.0.1:18082"
 	}
-	app, err := server.New(context.Background(), server.Config{Issuer: jwks.URL, Audience: "browser-test", Origin: "http://127.0.0.1:18081", APIKey: "fixture-only", SyncerURL: upstreamURL, Static: os.DirFS("../../frontend/dist"), Research: os.DirFS("../../../etf-rotation/dca-dashboard")})
+	app, err := server.New(context.Background(), server.Config{Issuer: jwks.URL, Audience: "browser-test", Origin: "http://" + address, APIKey: "fixture-only", SyncerURL: upstreamURL, Static: os.DirFS("../../frontend/dist"), Research: os.DirFS("../../../etf-rotation/dca-dashboard")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Fatal(http.ListenAndServe("127.0.0.1:18081", app))
+	var handler http.Handler = app
+	if previewFile != "" {
+		// Local preview only: exchange a signed test JWT for an HttpOnly cookie.
+		// Every request still passes the real application's signature/audience verifier.
+		// No production key, issuer or write endpoint is used by this snapshot preview.
+		loginURL := "http://" + address + "/preview-session?token=" + token
+		if err := os.WriteFile("/tmp/candela-rotation-preview-url", []byte(loginURL), 0600); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove("/tmp/candela-rotation-preview-url")
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/preview-session" {
+				candidate := r.URL.Query().Get("token")
+				check := httptest.NewRequest(http.MethodGet, "/api/rotation/backtest", nil)
+				check.Header.Set("Cf-Access-Jwt-Assertion", candidate)
+				rec := httptest.NewRecorder()
+				app.ServeHTTP(rec, check)
+				if rec.Code != http.StatusOK {
+					http.Error(w, "预览凭证无效", http.StatusUnauthorized)
+					return
+				}
+				http.SetCookie(w, &http.Cookie{Name: "candela-local-preview", Value: candidate, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: int(lifetime.Seconds())})
+				w.Header().Set("Cache-Control", "no-store")
+				w.Header().Set("Referrer-Policy", "no-referrer")
+				http.Redirect(w, r, "/strategies/four-etf-rotation", http.StatusSeeOther)
+				return
+			}
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				http.Error(w, "只读预览", http.StatusMethodNotAllowed)
+				return
+			}
+			if r.Header.Get("Cf-Access-Jwt-Assertion") == "" {
+				if cookie, err := r.Cookie("candela-local-preview"); err == nil && !strings.ContainsAny(cookie.Value, "\r\n") {
+					r.Header.Set("Cf-Access-Jwt-Assertion", cookie.Value)
+				}
+			}
+			app.ServeHTTP(w, r)
+		})
+	}
+	t.Fatal(http.ListenAndServe(address, handler))
 }

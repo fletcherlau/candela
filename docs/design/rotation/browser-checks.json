@@ -1,0 +1,46 @@
+{
+  "snapshot": "2026-09-16 published result, data through 2026-09-15",
+  "checks": [
+    {
+      "width": 1440,
+      "overflow": false,
+      "font": {
+        "family": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "weight": "300"
+      },
+      "gain": "11.24%",
+      "maxdd": "-12.11%"
+    },
+    {
+      "width": 820,
+      "overflow": false,
+      "font": {
+        "family": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "weight": "300"
+      },
+      "gain": "11.24%",
+      "maxdd": "-12.11%"
+    },
+    {
+      "width": 390,
+      "overflow": false,
+      "font": {
+        "family": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "weight": "300"
+      },
+      "gain": "11.24%",
+      "maxdd": "-12.11%"
+    },
+    {
+      "width": 320,
+      "overflow": false,
+      "font": {
+        "family": "\"Noto Serif SC Variable\", \"Songti SC\", serif",
+        "weight": "300"
+      },
+      "gain": "11.24%",
+      "maxdd": "-12.11%"
+    }
+  ],
+  "errors": []
+}
