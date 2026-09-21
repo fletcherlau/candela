@@ -28,11 +28,13 @@ func (s *Service) RefreshDaily(ctx context.Context) error {
 		return nil
 	}
 	// A source revision invalidates recorded close groups, including dates
-	// preceding the latest stored bar. Revisit those dates in the background;
-	// each publication retains the existing whole-group revision fence.
-	rows, err := s.DB.QueryContext(ctx, `SELECT d.trade_date FROM rotation_daily d
+	// preceding the latest stored bar. Reference/capture-only archive entries
+	// also need their first close once historical inputs have been repaired.
+	// Raw history alone must not manufacture a daily archive.
+	rows, err := s.DB.QueryContext(ctx, `SELECT archived.trade_date FROM `+archivedDates+`
  JOIN rotation_result r ON r.id=1
- WHERE d.basis='close' AND d.trade_date<=? AND (d.revision<>r.revision OR d.status='failed')
+ LEFT JOIN rotation_daily d ON d.trade_date=archived.trade_date AND d.basis='close'
+ WHERE archived.trade_date<=? AND (d.trade_date IS NULL OR d.revision<>r.revision OR d.status IN ('failed','computing'))
  UNION SELECT ? ORDER BY trade_date`, end, latest.String)
 	if err != nil {
 		return err

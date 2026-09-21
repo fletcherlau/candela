@@ -63,11 +63,17 @@ func (s *Service) publishCloseRecovery(ctx context.Context, date string, recover
 	var previous int64
 	var previousStatus string
 	err = tx.QueryRowContext(ctx, "SELECT revision,status FROM rotation_daily WHERE trade_date=? AND basis='close'", date).Scan(&previous, &previousStatus)
-	if err == nil && previous == revision && previousStatus != "failed" {
+	if err == nil && previous == revision && previousStatus != "failed" && previousStatus != "computing" {
 		return nil
 	}
 	if err != nil && err != sql.ErrNoRows {
 		return err
+	}
+	if block == "" {
+		current, err := s.markCloseComputing(ctx, date, revision, recovery)
+		if err != nil || !current {
+			return err
+		}
 	}
 	if err = s.ensureCalendar(ctx, date, date); err != nil {
 		return err
@@ -128,6 +134,35 @@ func (s *Service) publishCloseRecovery(ctx context.Context, date string, recover
 		return err
 	}
 	return commitRecoveryPublication(ctx, tx, recovery)
+}
+
+// Persist progress outside the input snapshot so readers can distinguish a
+// queued raw revision from active calculation. Keep the last complete payload
+// and its publication timestamp; both source and recovery ownership fence this
+// metadata just as they fence the eventual whole-group replacement.
+func (s *Service) markCloseComputing(ctx context.Context, date string, revision int64, recovery *RecoveryRun) (bool, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var current int64
+	if err = tx.QueryRowContext(ctx, "SELECT revision FROM rotation_result WHERE id=1 FOR UPDATE").Scan(&current); err != nil {
+		return false, err
+	}
+	if current != revision {
+		return false, nil
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,message)
+ VALUES (?,'close',?,'computing','正在计算四标的收盘数据，保留已发布完整结果')
+ ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),message=VALUES(message),updated_at=CURRENT_TIMESTAMP(6)`, date, revision)
+	if err != nil {
+		return false, err
+	}
+	if err = commitRecoveryPublication(ctx, tx, recovery); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *Service) dailyResult(date string, panels map[string][]core.DailyBarAdj, prices map[string]float64, reasons map[string]string, params CaptureParams) DailyResult {

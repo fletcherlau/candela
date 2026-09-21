@@ -38,13 +38,12 @@ func relevant(code string) bool {
 	}
 	return false
 }
-func horizon() string {
-	n := time.Now().In(time.FixedZone("Asia/Shanghai", 8*3600))
-	if n.Hour() < 18 {
-		n = n.AddDate(0, 0, -1)
-	}
-	return n.Format("20060102")
-}
+func horizon() string { return syncrun.Cutoff(time.Now()) }
+
+// Daily/range reads and continuous calculation share the service clock. Keep
+// the established 18:00 backtest cutoff, distinct from daily close eligibility.
+func (s *Service) horizon() string { return syncrun.Cutoff(s.now()) }
+
 func day(s string) time.Time { t, _ := time.Parse("20060102", s); return t }
 func (s *Service) lock(ctx context.Context, wait int) (*sql.Conn, error) {
 	c, e := s.DB.Conn(ctx)
@@ -207,14 +206,15 @@ func (s *Service) Handler() http.Handler {
 			return
 		}
 		if v.Status == "ready" && v.Result != nil {
+			cutoff := s.horizon()
 			var expected sql.NullString
-			if err := s.DB.QueryRowContext(r.Context(), "SELECT MAX(cal_date) FROM rotation_calendar WHERE is_open=1 AND cal_date<=?", horizon()).Scan(&expected); err != nil {
+			if err := s.DB.QueryRowContext(r.Context(), "SELECT MAX(cal_date) FROM rotation_calendar WHERE is_open=1 AND cal_date<=?", cutoff).Scan(&expected); err != nil {
 				http.Error(w, "交易日历暂不可用", 503)
 				return
 			}
 			var coverage sql.NullString
 			s.DB.QueryRowContext(r.Context(), "SELECT MAX(cal_date) FROM rotation_calendar").Scan(&coverage)
-			if !coverage.Valid || coverage.String < horizon() {
+			if !coverage.Valid || coverage.String < cutoff {
 				v.Status = "stale"
 				v.Message = "交易日历尚未更新，显示最近完整结果"
 			} else if expected.Valid && v.Result.End < expected.String {
@@ -237,7 +237,8 @@ func (s *Service) calculate(ctx context.Context) (*core.BacktestResult, string, 
 	defer tx.Rollback()
 	panels := make([]map[string]core.DailyBarAdj, 4)
 	from := ""
-	end := horizon()
+	cutoff := s.horizon()
+	end := cutoff
 	for i, code := range core.RotationCodes {
 		var through string
 		if err = tx.QueryRowContext(ctx, "SELECT through_date FROM rotation_coverage WHERE ts_code=?", code).Scan(&through); err != nil {
@@ -290,7 +291,7 @@ func (s *Service) calculate(ctx context.Context) (*core.BacktestResult, string, 
 		return nil, "", fmt.Errorf("尚无共同有效的同步范围")
 	}
 	// Cache the authoritative calendar, including closed dates; never infer holidays.
-	if err = s.ensureCalendar(ctx, from, horizon()); err != nil {
+	if err = s.ensureCalendar(ctx, from, cutoff); err != nil {
 		return nil, "", err
 	}
 	rows, err := s.DB.QueryContext(ctx, "SELECT cal_date FROM rotation_calendar WHERE cal_date>=? AND cal_date<=? AND is_open=1 ORDER BY cal_date", from, end)
@@ -344,7 +345,7 @@ func (s *Service) calculate(ctx context.Context) (*core.BacktestResult, string, 
 		}
 		return nil, "", err
 	}
-	if warning == "" && end < horizon() {
+	if warning == "" && end < cutoff {
 		warning = "同步覆盖尚未到当前截止日，显示已验证区间"
 	}
 	return result, warning, nil

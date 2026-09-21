@@ -16,7 +16,9 @@ import { isDailyDates, type DailyDates } from "@/lib/rotation-daily";
 const stateNames: Record<string, string> = {
   ready: "已发布",
   pending: "生成中",
-  updating: "更新中",
+  updating: "等待重算",
+  computing: "计算中",
+  syncing: "数据同步中",
   failed: "失败",
   unavailable: "未发布",
   missing: "缺失",

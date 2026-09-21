@@ -155,6 +155,7 @@ func readDailyDate(ctx context.Context, tx *sql.Tx, date string, revision int64)
 		return v, err
 	}
 	referenceRecord := false
+	staleClose := false
 	for rows.Next() {
 		var basis string
 		var state DailyStage
@@ -186,7 +187,10 @@ func readDailyDate(ctx context.Context, tx *sql.Tx, date string, revision int64)
 			}
 			if rev != revision {
 				state.Status = "updating"
-				state.Message = "收盘数据正在更新，保留已发布完整结果"
+				state.Message = "原始数据已更新，等待收盘重算；保留已发布完整结果"
+				// The stored timestamp describes the previous publication phase.
+				state.UpdatedAt = ""
+				staleClose = true
 			}
 			v.Close = result
 			v.CloseState = state
@@ -202,6 +206,20 @@ func readDailyDate(ctx context.Context, tx *sql.Tx, date string, revision int64)
 	rows.Close()
 	if err != nil {
 		return v, err
+	}
+	if staleClose {
+		block, err := etfPublicationBlock(ctx, tx)
+		if err != nil {
+			return v, err
+		}
+		switch block {
+		case "syncing":
+			v.CloseState.Status = "syncing"
+			v.CloseState.Message = "原始数据同步中，保留已发布完整收盘结果"
+		case "failed":
+			v.CloseState.Status = "failed"
+			v.CloseState.Message = "原始数据同步失败或已取消，收盘更新未完成；保留已发布完整结果"
+		}
 	}
 	if !referenceRecord {
 		var state, stage, message, updated string

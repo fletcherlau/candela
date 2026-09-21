@@ -212,6 +212,13 @@ func TestCorrectionHTTPCancelledHistoricalFactorCannotBeSkippedByLaterIncrementa
 	captureHTTP(t, "POST", etfAPI+"/"+cancelledID+"/cancel", "", 200, nil)
 	close(source.release)
 	waitETFBatch(t, etfAPI, cancelledID, "cancelled")
+	// A read must reflect the terminal source task even before the publisher
+	// gets its next turn; reading must not itself trigger a recomputation.
+	cancelled := dailyFromHTTP(t, api, "20250102")
+	cancelledPayload, _ := json.Marshal(cancelled.Close)
+	if cancelled.CloseState.Status != "failed" || string(cancelledPayload) != string(saved) {
+		t.Fatalf("cancelled correction still shown as active before publication: %+v", cancelled.CloseState)
+	}
 	incremental, _ := json.Marshal(map[string]any{"codes": []string{code}})
 	captureHTTP(t, "POST", etfAPI, string(incremental), 202, &batch)
 	waitETFBatch(t, etfAPI, batch.Batch.ID, "succeeded")
