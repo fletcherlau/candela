@@ -53,9 +53,9 @@ func (s *Service) publishCloseRecovery(ctx context.Context, date string, recover
 			return
 		}
 		defer failureTx.Rollback()
-		_, err = failureTx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,message)
- SELECT ?,'close',revision,'failed','收盘计算失败，等待后台重试；已发布完整结果保留' FROM rotation_result WHERE id=1 AND revision=?
- ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),message=VALUES(message),updated_at=CURRENT_TIMESTAMP(6)`, date, revision)
+		_, err = failureTx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,message,updated_at)
+ SELECT ?,'close',revision,'failed','收盘计算失败，等待后台重试；已发布完整结果保留',UTC_TIMESTAMP(6) FROM rotation_result WHERE id=1 AND revision=?
+ ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),message=VALUES(message),updated_at=UTC_TIMESTAMP(6)`, date, revision)
 		if err == nil {
 			_ = commitRecoveryPublication(ctx, failureTx, recovery)
 		}
@@ -117,7 +117,7 @@ func (s *Service) publishCloseRecovery(ctx context.Context, date string, recover
 		if err != nil {
 			return err
 		}
-		published = s.now().UTC()
+		published = s.now().UTC().Format("2006-01-02 15:04:05.999999")
 		status, message = "ready", "四标的收盘数据已发布"
 	}
 	var current int64
@@ -127,9 +127,9 @@ func (s *Service) publishCloseRecovery(ctx context.Context, date string, recover
 	if current != revision {
 		return nil
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,payload,published_at,missing)
- VALUES (?,'close',?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),available=VALUES(available),message=VALUES(message),
- missing=VALUES(missing),payload=COALESCE(VALUES(payload),payload),published_at=COALESCE(VALUES(published_at),published_at),updated_at=CURRENT_TIMESTAMP(6)`, date, revision, status, available, message, payload, published, missingJSON)
+	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,payload,published_at,missing,updated_at)
+ VALUES (?,'close',?,?,?,?,?,?,?,UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),available=VALUES(available),message=VALUES(message),
+ missing=VALUES(missing),payload=COALESCE(VALUES(payload),payload),published_at=COALESCE(VALUES(published_at),published_at),updated_at=UTC_TIMESTAMP(6)`, date, revision, status, available, message, payload, published, missingJSON)
 	if err != nil {
 		return err
 	}
@@ -153,9 +153,9 @@ func (s *Service) markCloseComputing(ctx context.Context, date string, revision 
 	if current != revision {
 		return false, nil
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,message)
- VALUES (?,'close',?,'computing','正在计算四标的收盘数据，保留已发布完整结果')
- ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),message=VALUES(message),updated_at=CURRENT_TIMESTAMP(6)`, date, revision)
+	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,message,updated_at)
+ VALUES (?,'close',?,'computing','正在计算四标的收盘数据，保留已发布完整结果',UTC_TIMESTAMP(6))
+ ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),message=VALUES(message),updated_at=UTC_TIMESTAMP(6)`, date, revision)
 	if err != nil {
 		return false, err
 	}
