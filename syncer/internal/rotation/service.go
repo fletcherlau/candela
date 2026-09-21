@@ -160,7 +160,7 @@ func (s *Service) refreshRecovery(ctx context.Context, recovery *RecoveryRun) er
 		return err
 	}
 	if status == "syncing" { // The named lock was released by an interrupted synchronizer.
-		err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='failed',message='上次行情同步中断，等待重新同步；旧结果保留' WHERE id=1")
+		err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='failed',message='上次行情同步中断，等待重新同步；旧结果保留' WHERE id=1 AND revision=?", rev)
 		return err
 	}
 	if status != "pending" && status != "computing" && !(recovery != nil && status == "failed") {
