@@ -76,6 +76,9 @@ func (s *Service) dailyView(ctx context.Context, requested string) (DailyView, e
 			if err != nil {
 				return DailyView{}, err
 			}
+			if prior == "" {
+				calendarStatus = "unavailable"
+			}
 			desired = prior
 			fallback = true
 			reason = "今日参考尚未发布，展示上一交易日已发布数据"
@@ -110,7 +113,11 @@ func (s *Service) dailyView(ctx context.Context, requested string) (DailyView, e
 	v.Fallback = fallback
 	v.FallbackReason = reason
 	v.Pending = pending
-	if fallback && v.Close == nil && v.Reference == nil {
+	if calendarStatus != "ready" {
+		v.Status = "calendar_unavailable"
+		v.Message = "交易日历尚未缓存完整，无法确认上一交易日"
+		v.FallbackReason = v.Message
+	} else if fallback && v.Close == nil && v.Reference == nil {
 		v.Status = "unavailable"
 		v.Message = "上一交易日暂无可用的已发布数据"
 	}

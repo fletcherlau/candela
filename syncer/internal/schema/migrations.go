@@ -10,7 +10,7 @@ import (
 // DDL in MySQL commits implicitly. Each statement is replayable, and the version
 // is recorded only after all its statements succeed. A connection-scoped lock
 // serializes startup migrations across syncer replicas.
-var migrations = [][]string{{
+var migrations = []func(context.Context, *sql.Conn) error{sqlMigration(
 	`CREATE TABLE IF NOT EXISTS index_series (
  ts_code VARCHAR(20) PRIMARY KEY, name VARCHAR(100) NOT NULL,
  fence BIGINT NOT NULL DEFAULT 0, active_run VARCHAR(32) NULL
@@ -36,7 +36,7 @@ var migrations = [][]string{{
  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
  KEY object_queue(ts_code,state,sequence), FOREIGN KEY(ts_code) REFERENCES index_series(ts_code)
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-}, {
+), sqlMigration(
 	// Version 1 is already deployed. Widen only source-optional metrics, preserving
 	// existing values; repeated ALTER is safe after interrupted migration startup.
 	`ALTER TABLE index_daily
@@ -45,7 +45,7 @@ var migrations = [][]string{{
  MODIFY pct_chg DECIMAL(16,4) NULL,
  MODIFY vol DECIMAL(24,4) NULL,
  MODIFY amount DECIMAL(24,4) NULL`,
-}, {
+), sqlMigration(
 	`CREATE TABLE IF NOT EXISTS rotation_result (
  id INT PRIMARY KEY, revision BIGINT NOT NULL DEFAULT 0,
  status VARCHAR(20) NOT NULL DEFAULT 'pending', message VARCHAR(300) NOT NULL DEFAULT '',
@@ -58,7 +58,7 @@ var migrations = [][]string{{
 	`CREATE TABLE IF NOT EXISTS rotation_calendar (
  cal_date CHAR(8) PRIMARY KEY, is_open TINYINT NOT NULL
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-}, {
+), sqlMigration(
 	`CREATE TABLE IF NOT EXISTS rotation_daily (
  trade_date CHAR(8) NOT NULL, basis VARCHAR(16) NOT NULL,
  revision BIGINT NOT NULL, status VARCHAR(20) NOT NULL,
@@ -67,7 +67,7 @@ var migrations = [][]string{{
  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
  PRIMARY KEY(trade_date,basis)
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-}, {
+), sqlMigration(
 	`CREATE TABLE IF NOT EXISTS sync_run_event (
  sequence BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
  run_id VARCHAR(32) NOT NULL, kind VARCHAR(32) NOT NULL,
@@ -76,7 +76,7 @@ var migrations = [][]string{{
  KEY run_events(run_id,sequence),
  FOREIGN KEY(run_id) REFERENCES sync_run(id) ON DELETE CASCADE
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-}, {
+), sqlMigration(
 	`CREATE TABLE IF NOT EXISTS rotation_capture_run (
  trade_date CHAR(8) PRIMARY KEY, target_at VARCHAR(35) NOT NULL, deadline_at VARCHAR(35) NOT NULL,
  basis VARCHAR(24) NOT NULL DEFAULT 'reference_1445',
@@ -92,9 +92,8 @@ var migrations = [][]string{{
  PRIMARY KEY(trade_date,ts_code),
  FOREIGN KEY(trade_date) REFERENCES rotation_capture_run(trade_date) ON DELETE CASCADE
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-}, {
-	`ALTER TABLE rotation_daily ADD COLUMN missing JSON NULL`,
-}}
+), ensureRotationDailyMissing,
+}
 
 func migrate(ctx context.Context, db *sql.DB) error {
 	conn, err := db.Conn(ctx)
@@ -117,7 +116,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migration (version INT PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`); err != nil {
 		return err
 	}
-	for i, statements := range migrations {
+	for i, migration := range migrations {
 		var applied int
 		if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migration WHERE version=?", i+1).Scan(&applied); err != nil {
 			return err
@@ -125,14 +124,44 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		if applied != 0 {
 			continue
 		}
-		for _, statement := range statements {
-			if _, err := conn.ExecContext(ctx, statement); err != nil {
-				return fmt.Errorf("migration %d: %w", i+1, err)
-			}
+		if err := migration(ctx, conn); err != nil {
+			return fmt.Errorf("migration %d: %w", i+1, err)
 		}
 		if _, err := conn.ExecContext(ctx, "INSERT INTO schema_migration(version) VALUES (?)", i+1); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func sqlMigration(statements ...string) func(context.Context, *sql.Conn) error {
+	return func(ctx context.Context, conn *sql.Conn) error {
+		for _, statement := range statements {
+			if _, err := conn.ExecContext(ctx, statement); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+// MySQL DDL commits before the version record. Under the migration lock,
+// recognize the already-applied column after an interrupted startup, while
+// rejecting an incompatible pre-existing definition instead of hiding it.
+func ensureRotationDailyMissing(ctx context.Context, conn *sql.Conn) error {
+	var dataType, nullable, extra string
+	err := conn.QueryRowContext(ctx, `SELECT DATA_TYPE,IS_NULLABLE,EXTRA
+ FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='rotation_daily' AND COLUMN_NAME='missing'`).Scan(&dataType, &nullable, &extra)
+	if err == sql.ErrNoRows {
+		_, err = conn.ExecContext(ctx, "ALTER TABLE rotation_daily ADD COLUMN missing JSON NULL")
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	if dataType != "json" || nullable != "YES" || extra != "" {
+		return fmt.Errorf("rotation_daily.missing has incompatible definition: %s nullable=%s extra=%s", dataType, nullable, extra)
 	}
 	return nil
 }

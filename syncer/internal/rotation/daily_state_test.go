@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"syncer/internal/core"
+	"syncer/internal/schema"
 	"syncer/internal/store"
 	"testing"
 	"time"
@@ -250,4 +251,75 @@ func TestDailyHTTPInvalidSavedPricesNeverProduceSlippage(t *testing.T) {
 		t.Fatal(err)
 	}
 	captureHTTP(t, "GET", url, "", 503, nil)
+}
+
+func TestDailyHTTPReadableAfterInterruptedSchemaUpgrade(t *testing.T) {
+	db, svc, _ := seedReferenceScenario(t, "20250103")
+	// Start with the deployed v6 schema, then exercise both a fresh upgrade and
+	// recovery after its DDL succeeded but the version record was not committed.
+	if _, err := db.Exec("ALTER TABLE rotation_daily DROP COLUMN missing"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("DELETE FROM schema_migration WHERE version=7"); err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.Ensure(context.Background(), db); err != nil {
+		t.Fatalf("fresh upgrade: %v", err)
+	}
+	if err := svc.PublishClose(context.Background(), "20250102"); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate termination after the non-transactional DDL committed, before
+	// startup could record the migration version. Published data must survive.
+	if _, err := db.Exec("DELETE FROM schema_migration WHERE version=7"); err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := schema.Ensure(context.Background(), db); err != nil {
+			t.Fatalf("restart %d: %v", attempt, err)
+		}
+	}
+	api := captureAPI(t, svc)
+	var view DailyView
+	captureHTTP(t, "GET", strings.TrimSuffix(api, capturePath)+"/api/v1/rotation/daily?tradeDate=20250102", "", 200, &view)
+	if view.Close == nil || view.Close.Available != 4 || view.Close.Cards[0].Price == nil || *view.Close.Cards[0].Price != 100 {
+		t.Fatalf("publication lost during schema recovery: %+v", view)
+	}
+}
+
+func TestDailyHTTPTradingDayFallbackRequiresCompleteCalendar(t *testing.T) {
+	for _, offset := range []time.Duration{-time.Minute, time.Minute} {
+		t.Run(offset.String(), func(t *testing.T) {
+			db, svc, source := seedReferenceScenario(t, "20250106")
+			target, _ := captureTarget("20250106")
+			svc.Now = func() time.Time { return target.Add(offset) }
+			if err := svc.PublishClose(context.Background(), "20250103"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Exec("DELETE FROM rotation_calendar WHERE cal_date='20250104'"); err != nil {
+				t.Fatal(err)
+			}
+			api := captureAPI(t, svc)
+			url := strings.TrimSuffix(api, capturePath) + "/api/v1/rotation/daily"
+			var unknown, saved, recovered DailyView
+			captureHTTP(t, "GET", url, "", 200, &unknown)
+			if unknown.Status != "calendar_unavailable" || unknown.CalendarStatus != "unavailable" || unknown.TradeDate != "" || unknown.Close != nil {
+				t.Fatalf("fallback guessed missing history instead of missing calendar: %+v", unknown)
+			}
+			captureHTTP(t, "GET", url+"?tradeDate=20250103", "", 200, &saved)
+			if saved.Close == nil {
+				t.Fatal("published Friday was lost")
+			}
+			if _, err := db.Exec("INSERT INTO rotation_calendar VALUES ('20250104',0)"); err != nil {
+				t.Fatal(err)
+			}
+			captureHTTP(t, "GET", url, "", 200, &recovered)
+			if recovered.CalendarStatus != "ready" || recovered.TradeDate != "20250103" || recovered.Close == nil || !recovered.Fallback {
+				t.Fatalf("confirmed calendar did not restore Friday: %+v", recovered)
+			}
+			if source.count() != 0 {
+				t.Fatal("read requested live quotes")
+			}
+		})
+	}
 }
