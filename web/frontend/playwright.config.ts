@@ -3,6 +3,7 @@ export default defineConfig({
   testDir: "./tests",
   testIgnore: [
     "etf-sync.spec.ts",
+    "rotation-recovery.spec.ts",
     "sync.spec.ts",
     "design.spec.ts",
     "rotation-daily.spec.ts",

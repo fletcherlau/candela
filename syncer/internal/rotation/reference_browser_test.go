@@ -64,7 +64,7 @@ func TestReferenceBrowserHarness(t *testing.T) {
 	}()
 	routes := router.NewRouter()
 	auth := middleware.NewApiKeyAuthMiddleware("fixture-only").Handle
-	for _, route := range append(svc.CaptureRoutes(auth), svc.DailyRoutes(auth)...) {
+	for _, route := range append(append(svc.CaptureRoutes(auth), svc.DailyRoutes(auth)...), svc.RecoveryRoutes(auth)...) {
 		if err := routes.Handle(route.Method, route.Path, route.Handler); err != nil {
 			t.Fatal(err)
 		}

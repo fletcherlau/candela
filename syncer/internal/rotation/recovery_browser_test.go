@@ -21,6 +21,9 @@ func TestRecoveryBrowserHarness(t *testing.T) {
 		t.Skip("browser harness is opt-in")
 	}
 	db, service, referenceSource := seedReferenceScenario(t, "20250103")
+	source := &recoveryQuoteSource{failed: true, calls: map[string]int{}}
+	jobs := &syncrun.ETFService{Store: syncrun.NewETFStore(db), Source: source, DefaultStart: "20240101", ChunkDays: 366, Now: func() time.Time { return time.Date(2025, 1, 3, 10, 0, 0, 0, time.UTC) }}
+	service.ETFSync = jobs
 	api := recoveryAPI(t, service)
 	captureHTTP(t, "POST", api+capturePath, `{"tradeDate":"20250103"}`, 202, nil)
 	stopCapture := startCaptureWorker(t, service)
@@ -46,10 +49,6 @@ func TestRecoveryBrowserHarness(t *testing.T) {
 	if _, err := db.Exec("DROP TRIGGER recovery_browser_failure"); err != nil {
 		t.Fatal(err)
 	}
-	source := &recoveryQuoteSource{failed: true, calls: map[string]int{}}
-	jobs := &syncrun.ETFService{Store: syncrun.NewETFStore(db), Source: source, DefaultStart: "20240101", ChunkDays: 366, Now: service.Now}
-	// Set the dependency before another recovery is accepted.
-	service.ETFSync = jobs
 	etfAPI := etfRecoveryAPI(t, jobs)
 	body, _ := json.Marshal(map[string]any{"codes": core.RotationCodes})
 	var original struct {
@@ -64,6 +63,7 @@ func TestRecoveryBrowserHarness(t *testing.T) {
 	source.mu.Lock()
 	source.failed = false
 	source.mu.Unlock()
+	crowdRecoveryHistory(t, service, api, 51)
 	routes := router.NewRouter()
 	auth := middleware.NewApiKeyAuthMiddleware("fixture-only").Handle
 	all := append(append(append(service.RecoveryRoutes(auth), service.CaptureRoutes(auth)...), service.DailyRoutes(auth)...), jobs.Routes(auth)...)

@@ -142,13 +142,13 @@ test("recovery read failure preserves dated state and expired login prevents fur
   await page.goto("/admin/data");
   const panel = page.getByRole("region", { name: "14:45 参考恢复" });
   await expect(panel).toContainText("原目标时点");
-  await page.route("**/api/rotation/recoveries", (route) =>
+  await page.route("**/api/rotation/recoveries/origins/**", (route) =>
     route.fulfill({ status: 502 }),
   );
   await panel.getByRole("button", { name: "重新读取恢复记录" }).click();
   await expect(panel.getByRole("alert")).toContainText("保留上次读取记录");
   await expect(panel).toContainText("原交易日 2025-01-03");
-  await page.unroute("**/api/rotation/recoveries");
+  await page.unroute("**/api/rotation/recoveries/origins/**");
   await page.setExtraHTTPHeaders({
     "Cf-Access-Jwt-Assertion": "expired-fixture",
   });
@@ -173,4 +173,31 @@ test("a dated recovery result link opens the requested historical day", async ({
     "2025-01-03",
   );
   expect(new URL(page.url()).searchParams.has("tradeDate")).toBe(false);
+});
+
+test("recovery loading times out without losing the selected original day", async ({
+  page,
+}) => {
+  await page.clock.install();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/rotation/recoveries/origins/**", async (route) => {
+    await held;
+    await route.abort().catch(() => {});
+  });
+  await page.goto("/admin/data");
+  const recovery = page.getByRole("region", { name: "14:45 参考恢复" });
+  await expect(recovery.getByLabel("正在读取恢复记录")).toBeVisible();
+  await page.clock.fastForward(16000);
+  await expect(recovery.getByRole("alert")).toContainText("读取超时");
+  await expect(
+    recovery.getByRole("button", { name: "重新读取恢复记录" }),
+  ).toHaveAttribute("aria-disabled", "false");
+  await expect(recovery).toContainText("原交易日 2025-01-03");
+  release();
+  await page.unroute("**/api/rotation/recoveries/origins/**");
+  await recovery.getByRole("button", { name: "重新读取恢复记录" }).click();
+  await expect(recovery.getByRole("alert")).toHaveCount(0);
 });

@@ -13,12 +13,15 @@ import (
 const recoveryPrefix = "/api/rotation/recoveries"
 const closeRecoveryPrefix = "/api/rotation/close-syncs"
 
+var rotationRecoveryOrigin = regexp.MustCompile(`^/api/rotation/recoveries/origins/(reference_1445/[0-9]{8}|close/[a-f0-9]{32})$`)
+
 var rotationRecoveryAction = regexp.MustCompile(`^/api/rotation/(reference-captures/[0-9]{8}|close-syncs/[a-f0-9]{32}|recoveries/[a-f0-9]{32})/retry$`)
 
 // Recovery carries only a saved task identity. It cannot submit dates, symbols,
 // credentials, arbitrary upstream paths or a replacement quote from the browser.
 func (a *application) rotationRecoveries(w http.ResponseWriter, r *http.Request) {
 	action := rotationRecoveryAction.MatchString(r.URL.Path)
+	originList := rotationRecoveryOrigin.MatchString(r.URL.Path)
 	method := r.Method
 	if method == http.MethodHead {
 		method = http.MethodGet
@@ -28,7 +31,7 @@ func (a *application) rotationRecoveries(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "不支持此操作。", 405)
 		return
 	}
-	if !action && r.URL.Path != recoveryPrefix && !(strings.HasPrefix(r.URL.Path, recoveryPrefix+"/") && syncRunID.MatchString(strings.TrimPrefix(r.URL.Path, recoveryPrefix+"/"))) {
+	if !action && !originList && r.URL.Path != recoveryPrefix && !(strings.HasPrefix(r.URL.Path, recoveryPrefix+"/") && syncRunID.MatchString(strings.TrimPrefix(r.URL.Path, recoveryPrefix+"/"))) {
 		http.NotFound(w, r)
 		return
 	}
@@ -86,7 +89,7 @@ func (a *application) rotationRecoveries(w http.ResponseWriter, r *http.Request)
 			ID string `json:"id"`
 		} `json:"run"`
 	}
-	list := r.URL.Path == recoveryPrefix
+	list := r.URL.Path == recoveryPrefix || originList
 	if err != nil || len(payload) > 1<<20 || json.Unmarshal(payload, &decoded) != nil || (list && decoded.Runs == nil) || (!list && (decoded.Run == nil || !syncRunID.MatchString(decoded.Run.ID))) {
 		http.Error(w, "恢复记录返回异常。", 502)
 		return

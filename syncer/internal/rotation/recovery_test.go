@@ -3,6 +3,7 @@ package rotation
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -122,6 +123,20 @@ func TestRecoveryHTTPMissingReferenceCannotBeReplacedWithCurrentQuote(t *testing
 	if view.Reference != nil || source.count() != 0 {
 		t.Fatal("invented reference")
 	}
+	crowdRecoveryHistory(t, service, api, 51)
+	var recent, original struct {
+		Runs []RecoveryRun `json:"runs"`
+	}
+	captureHTTP(t, "GET", api+recoveryPath, "", 200, &recent)
+	for _, run := range recent.Runs {
+		if run.ID == accepted.Run.ID {
+			t.Fatal("fixture did not move original beyond recent list")
+		}
+	}
+	captureHTTP(t, "GET", api+recoveryPath+"/origins/reference_1445/20250103", "", 200, &original)
+	if len(original.Runs) != 1 || original.Runs[0].ID != accepted.Run.ID {
+		t.Fatal("original recovery history disappeared", original)
+	}
 }
 func TestRecoveryHTTPFailedAttemptCanRetryWithParentAndFrozenTarget(t *testing.T) {
 	db, service, source := seedReferenceScenario(t, "20250103")
@@ -205,6 +220,19 @@ func TestRecoveryHTTPLostOwnerCannotPublishFrozenReference(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	req, err := http.NewRequest("POST", api+recoveryPath+"/"+accepted.Run.ID+"/retry", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Api-Key", "fixture-only")
+	response, err := (&http.Client{Timeout: 500 * time.Millisecond}).Do(req)
+	if err != nil {
+		t.Fatal("retry of a running recovery must reject without waiting on publication", err)
+	}
+	response.Body.Close()
+	if response.StatusCode != 409 {
+		t.Fatalf("running retry status %d", response.StatusCode)
+	}
 	// Simulate the persisted outcome of a replacement executor after lease loss.
 	if _, err = db.Exec("UPDATE rotation_recovery_run SET owner=owner+1,state='failed',stage='calculation_failed',message='replacement executor failed',lease_until=NULL WHERE id=?", accepted.Run.ID); err != nil {
 		t.Fatal(err)
@@ -236,5 +264,27 @@ func TestRecoveryHTTPLostOwnerCannotPublishFrozenReference(t *testing.T) {
 	}
 	if source.count() != 4 {
 		t.Fatal("recovery requested new quotes")
+	}
+}
+
+// Populate unrelated attempts through production acceptance and workers. This
+// ensures an original task remains inspectable beyond the global recent list.
+func crowdRecoveryHistory(t *testing.T, service *Service, api string, count int) {
+	t.Helper()
+	const date = "20240902"
+	if _, err := service.DB.Exec("INSERT INTO rotation_calendar(cal_date,is_open) VALUES (?,1) ON DUPLICATE KEY UPDATE is_open=1", date); err != nil {
+		t.Fatal(err)
+	}
+	captureHTTP(t, "POST", api+capturePath, `{"tradeDate":"`+date+`"}`, 202, nil)
+	stop := startCaptureWorker(t, service)
+	defer stop()
+	waitCapture(t, api+capturePath, date, "missing")
+	path := api + capturePath + "/" + date + "/retry"
+	for i := 0; i < count; i++ {
+		var result struct {
+			Run RecoveryRun `json:"run"`
+		}
+		captureHTTP(t, "POST", path, "", 202, &result)
+		path = api + recoveryPath + "/" + result.Run.ID + "/retry"
 	}
 }

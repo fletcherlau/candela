@@ -35,8 +35,14 @@ func scanRecovery(row captureScanner) (r RecoveryRun, err error) {
 func (s *Service) recoveryRun(ctx context.Context, id string) (RecoveryRun, error) {
 	return scanRecovery(s.DB.QueryRowContext(ctx, "SELECT "+recoveryColumns+" FROM rotation_recovery_run WHERE id=?", id))
 }
-func (s *Service) recoveryList(ctx context.Context) ([]RecoveryRun, error) {
-	rows, err := s.DB.QueryContext(ctx, "SELECT "+recoveryColumns+" FROM rotation_recovery_run ORDER BY sequence DESC LIMIT 50")
+func (s *Service) recoveryList(ctx context.Context, basis, origin string) ([]RecoveryRun, error) {
+	query := "SELECT " + recoveryColumns + " FROM rotation_recovery_run"
+	var args []any
+	if basis != "" {
+		query += " WHERE basis=? AND origin_id=?"
+		args = []any{basis, origin}
+	}
+	rows, err := s.DB.QueryContext(ctx, query+" ORDER BY sequence DESC LIMIT 50", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +75,11 @@ func (s *Service) acceptReferenceRecovery(ctx context.Context, origin, parent st
 		if previous.Basis != "reference_1445" {
 			return RecoveryRun{}, false, &captureRequestError{400, "不支持此恢复阶段。"}
 		}
+		// Reject active attempts before acquiring the capture lock. The
+		// publisher holds that lock before checking its recovery ownership.
+		if previous.State != "failed" && previous.State != "unavailable" {
+			return RecoveryRun{}, false, &captureRequestError{409, "原恢复任务尚未失败，无需再次重试。"}
+		}
 		origin = previous.OriginID
 		keyInput = "retry/" + parent
 	}
@@ -84,15 +95,6 @@ func (s *Service) acceptReferenceRecovery(ctx context.Context, origin, parent st
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return RecoveryRun{}, false, err
-	}
-	if parent != "" {
-		var state string
-		if err = tx.QueryRowContext(ctx, "SELECT state FROM rotation_recovery_run WHERE id=?", parent).Scan(&state); err != nil {
-			return RecoveryRun{}, false, err
-		}
-		if state != "failed" && state != "unavailable" {
-			return RecoveryRun{}, false, &captureRequestError{409, "原恢复任务尚未失败，无需再次重试。"}
-		}
 	}
 	var published int
 	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM rotation_daily WHERE trade_date=? AND basis='reference_1445' AND payload IS NOT NULL", origin).Scan(&published); err != nil {

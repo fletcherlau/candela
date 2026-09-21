@@ -122,9 +122,12 @@ export function RotationRecovery({
     async function poll() {
       let pending = false;
       try {
-        const data = await read("/api/rotation/recoveries", {
-          signal: controller.signal,
-        });
+        const data = await read(
+          `/api/rotation/recoveries/origins/${basis}/${origin}`,
+          {
+            signal: controller.signal,
+          },
+        );
         if (!Array.isArray(data.runs) || !data.runs.every(isRun))
           throw new Error("恢复记录格式异常。");
         const records: RecoveryRun[] = data.runs.filter(

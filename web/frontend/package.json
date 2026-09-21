@@ -16,6 +16,7 @@
     "test:capture": "playwright test --config playwright.capture.config.ts",
     "test:daily": "playwright test --config playwright.daily.config.ts",
     "test:range": "playwright test --config playwright.range.config.ts",
+    "test:recovery": "playwright test --config playwright.recovery.config.ts",
     "test:etf": "playwright test --config playwright.etf.config.ts",
     "test:history": "playwright test --config playwright.history.config.ts"
   },

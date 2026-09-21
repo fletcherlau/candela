@@ -18,7 +18,7 @@ const recoveryPath = "/api/v1/rotation/recoveries"
 
 func (s *Service) RecoveryRoutes(auth func(http.HandlerFunc) http.HandlerFunc) []rest.Route {
 	h := auth(s.recoveryHandler)
-	return []rest.Route{{Method: "GET", Path: recoveryPath, Handler: h}, {Method: "GET", Path: recoveryPath + "/:id", Handler: h}, {Method: "POST", Path: recoveryPath + "/:id/retry", Handler: h}, {Method: "POST", Path: capturePath + "/:date/retry", Handler: h}, {Method: "POST", Path: closeRecoveryPath + "/:id/retry", Handler: h}}
+	return []rest.Route{{Method: "GET", Path: recoveryPath, Handler: h}, {Method: "GET", Path: recoveryPath + "/:id", Handler: h}, {Method: "GET", Path: recoveryPath + "/origins/:basis/:origin", Handler: h}, {Method: "POST", Path: recoveryPath + "/:id/retry", Handler: h}, {Method: "POST", Path: capturePath + "/:date/retry", Handler: h}, {Method: "POST", Path: closeRecoveryPath + "/:id/retry", Handler: h}}
 }
 func (s *Service) recoveryHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -40,8 +40,26 @@ func (s *Service) recoveryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" {
-		if r.URL.Path == recoveryPath {
-			runs, err := s.recoveryList(r.Context())
+		if r.URL.Path == recoveryPath || strings.HasPrefix(r.URL.Path, recoveryPath+"/origins/") {
+			basis, origin := "", ""
+			if r.URL.Path != recoveryPath {
+				parts := strings.Split(strings.TrimPrefix(r.URL.Path, recoveryPath+"/origins/"), "/")
+				if len(parts) != 2 {
+					send(404, map[string]string{"error": "原任务不存在。"})
+					return
+				}
+				basis, origin = parts[0], parts[1]
+				if basis == "reference_1445" {
+					if _, err := captureTarget(origin); err != nil {
+						send(400, map[string]string{"error": "原日期无效。"})
+						return
+					}
+				} else if basis != "close" || !syncrun.ValidID(origin) {
+					send(404, map[string]string{"error": "原任务不存在。"})
+					return
+				}
+			}
+			runs, err := s.recoveryList(r.Context(), basis, origin)
 			if err != nil {
 				fail(err)
 				return

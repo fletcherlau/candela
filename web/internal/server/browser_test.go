@@ -68,6 +68,19 @@ func TestBrowserHarness(t *testing.T) {
 			httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/rotation/recoveries") {
+			if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+				address := "http://127.0.0.1:18086"
+				if os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+					address = "http://127.0.0.1:18087"
+				}
+				target, _ := url.Parse(address)
+				httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+			} else {
+				w.Write([]byte(`{"runs":[]}`))
+			}
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1/rotation/reference-captures") {
 			if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
 				address := "http://127.0.0.1:18086"
@@ -82,8 +95,11 @@ func TestBrowserHarness(t *testing.T) {
 			return
 		}
 		if r.URL.Path == "/api/v1/rotation/daily" || r.URL.Path == "/api/v1/rotation/daily/dates" {
-			if os.Getenv("CANDELA_DAILY_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+			if os.Getenv("CANDELA_DAILY_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" || os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" {
 				address := "http://127.0.0.1:18084"
+				if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" {
+					address = "http://127.0.0.1:18086"
+				}
 				if os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
 					address = "http://127.0.0.1:18087"
 				}
@@ -99,7 +115,7 @@ func TestBrowserHarness(t *testing.T) {
 				for _, code := range []string{"510880.SH", "518880.SH", "159915.SZ", "513100.SH"} {
 					slips = append(slips, map[string]any{"code": code, "bps": nil, "reason": "未接入每日数据"})
 				}
-				json.NewEncoder(w).Encode(map[string]any{"requestedDate": "", "currentDate": "", "currentTradingDate": "", "tradeDate": "", "selectionMode": "default", "fallback": false, "fallbackReason": "", "calendarStatus": "unavailable", "status": "unavailable", "message": "浏览器测试未接入每日数据", "close": nil, "reference": nil, "referenceStatus": "missing", "referenceState": stage, "closeState": stage, "priceSlippage": slips})
+				json.NewEncoder(w).Encode(map[string]any{"requestedDate": r.URL.Query().Get("tradeDate"), "currentDate": "", "currentTradingDate": "", "tradeDate": r.URL.Query().Get("tradeDate"), "selectionMode": "default", "fallback": false, "fallbackReason": "", "calendarStatus": "unavailable", "status": "unavailable", "message": "浏览器测试未接入每日数据", "close": nil, "reference": nil, "referenceStatus": "missing", "referenceState": stage, "closeState": stage, "priceSlippage": slips})
 			}
 			return
 		}
