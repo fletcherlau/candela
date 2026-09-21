@@ -98,7 +98,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			}
 			if r.Method == "POST" {
 				body, _ := io.ReadAll(r.Body)
-				if r.URL.Path == "/api/v1/data/etf-syncs" && string(body) != `{"codes":["510880.SH"]}` {
+				if r.URL.Path == "/api/v1/data/etf-syncs" && string(body) != `{"codes":["510880.SH"]}` && string(body) != `{"codes":["510880.SH"],"mode":"historical","startDate":"20250102","endDate":"20250103"}` {
 					t.Errorf("ETF scope changed: %s", body)
 				}
 				if r.URL.Path != "/api/v1/data/etf-syncs" && len(body) != 0 {
@@ -450,6 +450,9 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			if res := send("POST", path, body, "https://demo.candlea.cn", csrf, true); res.Code != 202 {
 				t.Fatalf("ETF write %s: %d %s", path, res.Code, res.Body.String())
 			}
+		}
+		if res := send("POST", "/api/etf-syncs", `{"codes":["510880.SH"],"mode":"historical","startDate":"20250102","endDate":"20250103"}`, "https://demo.candlea.cn", csrf, true); res.Code != 202 {
+			t.Fatalf("historical ETF write: %d %s", res.Code, res.Body.String())
 		}
 		for _, path := range []string{"/api/etf-syncs", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
 			if res := send("GET", path, "", "", "", false); res.Code != 200 {

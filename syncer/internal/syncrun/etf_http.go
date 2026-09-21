@@ -53,16 +53,14 @@ func (s *ETFService) etfHandler(w http.ResponseWriter, r *http.Request) {
 			send(405, map[string]string{"error": "不支持此操作。"})
 			return
 		}
-		var input struct {
-			Codes []string `json:"codes"`
-		}
+		var input ETFRequest
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384))
 		decoder.DisallowUnknownFields()
 		if decoder.Decode(&input) != nil || decoder.Decode(&struct{}{}) != io.EOF {
 			send(400, map[string]string{"error": "请求格式不正确。"})
 			return
 		}
-		b, duplicate, err := s.Submit(r.Context(), input.Codes)
+		b, duplicate, err := s.SubmitRequest(r.Context(), input)
 		if err != nil {
 			fail(err)
 			return

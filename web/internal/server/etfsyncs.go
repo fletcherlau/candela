@@ -17,7 +17,8 @@ var etfSyncAction = regexp.MustCompile(`^/api/etf-syncs/[a-f0-9]{32}/(retry|canc
 var etfCode = regexp.MustCompile(`^[0-9]{6}\.(SH|SZ)$`)
 
 // Only batch creation and the original batch's retry/cancel intent cross this
-// boundary. Browser-supplied dates, service credentials and upstream paths do not.
+// boundary. Only new historical batches accept a date range; retries cannot
+// replace their saved scope. Credentials and upstream paths stay server-owned.
 func (a *application) etfSyncs(w http.ResponseWriter, r *http.Request) {
 	suffix := strings.TrimPrefix(r.URL.Path, etfSyncPrefix)
 	action := etfSyncAction.MatchString(r.URL.Path)
@@ -48,12 +49,29 @@ func (a *application) etfSyncs(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			var input struct {
-				Codes []string `json:"codes"`
+				Codes     []string `json:"codes"`
+				Mode      string   `json:"mode,omitempty"`
+				StartDate string   `json:"startDate,omitempty"`
+				EndDate   string   `json:"endDate,omitempty"`
 			}
 			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384))
 			decoder.DisallowUnknownFields()
 			if decoder.Decode(&input) != nil || decoder.Decode(&struct{}{}) != io.EOF || len(input.Codes) > 500 {
 				http.Error(w, "ETF 同步请求格式不正确。", 400)
+				return
+			}
+			validScope := false
+			switch input.Mode {
+			case "", "incremental":
+				validScope = input.StartDate == "" && input.EndDate == ""
+			case "historical":
+				from, firstErr := time.Parse("20060102", input.StartDate)
+				_, lastErr := time.Parse("20060102", input.EndDate)
+				validScope = firstErr == nil && lastErr == nil && from.Year() >= 1 && input.StartDate <= input.EndDate
+			}
+			// The synchronization service owns the clock and the final cutoff.
+			if !validScope {
+				http.Error(w, "请选择有效的同步方式和起止日期。", 400)
 				return
 			}
 			for _, code := range input.Codes {

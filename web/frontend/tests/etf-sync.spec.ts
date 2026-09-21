@@ -233,3 +233,83 @@ test("invalid ETF codes are associated with the field and never submitted", asyn
   await input.fill("510880.SH");
   await expect(input).not.toHaveAttribute("aria-invalid", "true");
 });
+
+for (const width of [1440, 820, 390, 320]) {
+  test(`historical ETF range remains fixed across submission and reload at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/admin/data");
+    const panel = page.getByRole("region", { name: "ETF 批量同步" });
+    const historical = panel.getByRole("radio", {
+      name: "历史重同步",
+      exact: true,
+    });
+    await historical.click();
+    await expect(historical).toHaveAttribute("data-state", "on");
+    const start = panel.getByLabel("开始日期", { exact: true });
+    const end = panel.getByLabel("结束日期", { exact: true });
+    await start.fill("2025-01-03");
+    await end.fill("2025-01-02");
+    await panel
+      .getByRole("button", { name: "重同步全部启用 ETF", exact: true })
+      .click();
+    await expect(start).toHaveAttribute("aria-invalid", "true");
+    await expect(end).toHaveAccessibleDescription(/开始日期不能晚于结束日期/);
+    await start.fill("2025-01-02");
+    await panel.getByLabel("指定 ETF 代码", { exact: true }).fill("510880.SH");
+    const accepted = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/etf-syncs") &&
+        response.request().method() === "POST",
+    );
+    await panel
+      .getByRole("button", { name: "重同步指定 ETF", exact: true })
+      .click();
+    const response = await accepted;
+    expect(response.status()).toBe(202);
+    const submitted = (await response.json()).batch;
+    expect(submitted.mode).toBe("historical");
+    expect(submitted.startDate).toBe("20250102");
+    expect(submitted.endDate).toBe("20250102");
+    const detail = panel.getByLabel("ETF 批次详情");
+    await expect(detail).toContainText("成功 1 / 1", { timeout: 15000 });
+    await expect(detail).toContainText("历史重同步 2025.01.02 — 2025.01.02");
+    await expect(detail.locator('[data-etf-code="510880.SH"]')).toContainText(
+      "起点 2025.01.02 · 已处理至 2025.01.02 · 1 条",
+    );
+    await page.reload();
+    await expect(detail).toContainText(submitted.id);
+    await expect(detail).toContainText("历史重同步 2025.01.02 — 2025.01.02");
+    await historical.click();
+    await start.fill("2025-01-02");
+    await end.fill("2025-01-02");
+    await historical.focus();
+    await expect(historical).toBeFocused();
+    await historical.press("ArrowLeft");
+    await expect(
+      panel.getByRole("radio", { name: "增量同步", exact: true }),
+    ).toBeFocused();
+    await historical.click();
+    await page.evaluate(() => document.fonts.ready);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await panel.screenshot({ path: `/tmp/candela-etf-history-${width}.png` });
+  });
+}
+
+test("rejected historical end date is explicit and does not claim acceptance", async ({ page }) => {
+  await page.goto("/admin/data");
+  const panel = page.getByRole("region", { name: "ETF 批量同步" });
+  await panel.getByRole("radio", { name: "历史重同步", exact: true }).click();
+  await panel.getByLabel("开始日期", { exact: true }).fill("2025-01-02");
+  await panel.getByLabel("结束日期", { exact: true }).fill("2025-01-04");
+  const rejected = page.waitForResponse(response => response.url().endsWith("/api/etf-syncs") && response.request().method() === "POST");
+  await panel.getByRole("button", { name: "重同步全部启用 ETF", exact: true }).click();
+  expect((await rejected).status()).toBe(400);
+  await expect(panel.getByRole("alert")).toContainText("结束日期不能晚于北京时间今天");
+  await expect(panel.getByRole("alert")).not.toContainText("操作可能已被接受");
+});
