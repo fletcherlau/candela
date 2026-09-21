@@ -136,24 +136,16 @@ func (s *Store) Claim(ctx context.Context) (Run, error) {
 		if alive {
 			return Run{}, sql.ErrNoRows
 		}
-		if state == "cancelling" {
-			_, err = tx.ExecContext(ctx, `UPDATE sync_run SET state='cancelled',stage='finished',lease_until=NULL,message='任务已取消；已提交数据保留。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, active.String)
-		} else if state == "running" {
-			_, err = tx.ExecContext(ctx, `UPDATE sync_run SET state='queued',stage='recovering',error_code='',message='执行中断，等待从原检查点恢复。',lease_until=NULL,updated_at=UTC_TIMESTAMP(6) WHERE id=?`, active.String)
+
+		switch state {
+		case "cancelling":
+			err = markCancelled(ctx, tx, active.String, Code)
+		case "running":
+			err = markInterrupted(ctx, tx, active.String, Code, "执行权过期，已提交分段保留，等待恢复。")
+		default:
+			err = releaseRun(ctx, tx, active.String, Code)
 		}
 		if err != nil {
-			return Run{}, err
-		}
-		if state == "running" {
-			err = recordEvent(ctx, tx, active.String, "interrupted", "执行权过期，已提交分段保留，等待恢复。")
-		}
-		if state == "cancelling" {
-			err = recordEvent(ctx, tx, active.String, "cancelled", "已确认取消，已提交数据保留。")
-		}
-		if err != nil {
-			return Run{}, err
-		}
-		if _, err = tx.ExecContext(ctx, "UPDATE index_series SET active_run=NULL WHERE ts_code=?", Code); err != nil {
 			return Run{}, err
 		}
 	}
@@ -310,20 +302,14 @@ func (s *Store) Cancel(ctx context.Context, id string) (Run, error) {
 	if err != nil {
 		return Run{}, err
 	}
+
 	switch r.State {
 	case "queued":
-		_, err = tx.ExecContext(ctx, "UPDATE sync_run SET state='cancelled',stage='finished',message='任务已取消；已提交数据保留。',updated_at=UTC_TIMESTAMP(6) WHERE id=?", id)
+		err = markCancelled(ctx, tx, id, r.Code)
 	case "running":
-		_, err = tx.ExecContext(ctx, "UPDATE sync_run SET state='cancelling',message='正在取消；不会提交新的分段。',updated_at=UTC_TIMESTAMP(6) WHERE id=?", id)
-	}
-	if err != nil {
-		return Run{}, err
-	}
-	if r.State == "queued" {
-		err = recordEvent(ctx, tx, id, "cancelled", "排队任务已取消。")
-	}
-	if r.State == "running" {
-		err = recordEvent(ctx, tx, id, "cancel_requested", "已记录取消意图，停止提交新分段。")
+		if _, err = tx.ExecContext(ctx, "UPDATE sync_run SET state='cancelling',message='正在取消；不会提交新的分段。',updated_at=UTC_TIMESTAMP(6) WHERE id=?", id); err == nil {
+			err = recordEvent(ctx, tx, id, "cancel_requested", "已记录取消意图，停止提交新分段。")
+		}
 	}
 	if err != nil {
 		return Run{}, err
@@ -351,21 +337,15 @@ func (s *Store) completeCancellation(ctx context.Context, r Run) error {
 	if !active.Valid || active.String != r.ID || fence != r.Owner {
 		return ErrOwnership
 	}
-	result, err := tx.ExecContext(ctx, "UPDATE sync_run SET state='cancelled',stage='finished',lease_until=NULL,message='任务已取消；已提交数据保留。',updated_at=UTC_TIMESTAMP(6) WHERE id=? AND state='cancelling' AND owner=?", r.ID, r.Owner)
-	if err != nil {
+
+	var cancelling bool
+	if err = tx.QueryRowContext(ctx, "SELECT state='cancelling' AND owner=? FROM sync_run WHERE id=? FOR UPDATE", r.Owner, r.ID).Scan(&cancelling); err != nil {
 		return err
 	}
-	n, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n != 1 {
+	if !cancelling {
 		return ErrOwnership
 	}
-	if err = recordEvent(ctx, tx, r.ID, "cancelled", "已确认取消，已提交数据保留。"); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, "UPDATE index_series SET active_run=NULL WHERE ts_code=?", r.Code); err != nil {
+	if err = markCancelled(ctx, tx, r.ID, r.Code); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -380,14 +360,33 @@ func recordEvent(ctx context.Context, tx *sql.Tx, id, kind, message string) erro
 // Interrupt releases a live execution for a subsequent process. If its lease
 // has already expired, Claim will perform the same transition after fencing it.
 func (s *Store) Interrupt(ctx context.Context, r Run) error {
+
 	return s.owned(ctx, r, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `UPDATE sync_run SET state='queued',stage='recovering',lease_until=NULL,error_code='',message='执行中断，等待从原检查点恢复。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, r.ID); err != nil {
-			return err
-		}
-		if err := recordEvent(ctx, tx, r.ID, "interrupted", "服务执行中断，已提交分段保留，等待恢复。"); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, "UPDATE index_series SET active_run=NULL WHERE ts_code=?", r.Code)
-		return err
+		return markInterrupted(ctx, tx, r.ID, r.Code, "服务执行中断，已提交分段保留，等待恢复。")
 	})
+}
+
+// These transitions require the caller to hold the object lock and establish
+// the eligible state/ownership. Graceful completion and recovery share them.
+func markCancelled(ctx context.Context, tx *sql.Tx, id, code string) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE sync_run SET state='cancelled',stage='finished',lease_until=NULL,message='任务已取消；已提交数据保留。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, id); err != nil {
+		return err
+	}
+	if err := recordEvent(ctx, tx, id, "cancelled", "已确认取消，已提交数据保留。"); err != nil {
+		return err
+	}
+	return releaseRun(ctx, tx, id, code)
+}
+func markInterrupted(ctx context.Context, tx *sql.Tx, id, code, reason string) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE sync_run SET state='queued',stage='recovering',lease_until=NULL,error_code='',message='执行中断，等待从原检查点恢复。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, id); err != nil {
+		return err
+	}
+	if err := recordEvent(ctx, tx, id, "interrupted", reason); err != nil {
+		return err
+	}
+	return releaseRun(ctx, tx, id, code)
+}
+func releaseRun(ctx context.Context, tx *sql.Tx, id, code string) error {
+	_, err := tx.ExecContext(ctx, "UPDATE index_series SET active_run=NULL WHERE ts_code=? AND active_run=?", code, id)
+	return err
 }

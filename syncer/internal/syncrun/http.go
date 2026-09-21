@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/zeromicro/go-zero/rest"
 	"io"
 	"net/http"
 	"regexp"
@@ -113,5 +114,17 @@ func (s *Store) Handler() http.HandlerFunc {
 			return
 		}
 		send(200, map[string]any{"run": run})
+	}
+}
+
+// Routes is shared by the production server and HTTP acceptance harness, so a
+// handler cannot pass acceptance while remaining unreachable in production.
+func (s *Store) Routes(auth func(http.HandlerFunc) http.HandlerFunc) []rest.Route {
+	handler := auth(s.Handler())
+	return []rest.Route{
+		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/data/sync-runs", Handler: handler},
+		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs/:id", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/data/sync-runs/:id/cancel", Handler: handler},
 	}
 }

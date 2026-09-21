@@ -139,13 +139,7 @@ func main() {
 	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/daily", Handler: svcCtx.ApiKeyAuth(rotationService.DailyHandler().ServeHTTP)})
 	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/backtest/range", Handler: svcCtx.ApiKeyAuth(rotationService.RangeHandler().ServeHTTP)})
 	runStore := syncrun.NewStore(db)
-	for _, route := range []rest.Route{
-		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
-		{Method: http.MethodPost, Path: "/api/v1/data/sync-runs", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
-		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs/:id", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
-	} {
-		server.AddRoute(route)
-	}
+	server.AddRoutes(runStore.Routes(svcCtx.ApiKeyAuth))
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	rotationDone := make(chan struct{})
 	go func() { defer close(rotationDone); rotationService.Serve(workerCtx) }()

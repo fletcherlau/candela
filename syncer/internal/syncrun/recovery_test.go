@@ -3,6 +3,7 @@ package syncrun
 import (
 	"context"
 	"encoding/json"
+	"github.com/zeromicro/go-zero/rest/router"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +17,7 @@ import (
 // source and persisted crash/lease conditions are controlled by these tests.
 func maintenanceAPI(t *testing.T, st *Store) string {
 	t.Helper()
-	api := httptest.NewServer(middleware.NewApiKeyAuthMiddleware("fixture-only").Handle(st.Handler()))
+	api := httptest.NewServer(maintenanceRouter(t, st))
 	t.Cleanup(api.Close)
 	return api.URL + "/api/v1/data/sync-runs"
 }
@@ -32,10 +33,10 @@ func maintenanceRequest(t *testing.T, method, url, body string, status int) Run 
 		Run   Run    `json:"run"`
 		Error string `json:"error"`
 	}
-	check(t, json.NewDecoder(res.Body).Decode(&out))
 	if res.StatusCode != status {
-		t.Fatalf("%s %s: status=%d want=%d error=%s", method, url, res.StatusCode, status, out.Error)
+		t.Fatalf("%s %s: status=%d want=%d", method, url, res.StatusCode, status)
 	}
+	check(t, json.NewDecoder(res.Body).Decode(&out))
 	return out.Run
 }
 func TestMySQLHTTPCancelQueuedIsDurableAndIdempotent(t *testing.T) {
@@ -254,4 +255,13 @@ func TestMySQLHTTPShutdownLeavesResumableCheckpoint(t *testing.T) {
 		t.Fatalf("shutdown recovery: %+v", complete)
 	}
 	assertMaintenanceEvents(t, api+"/"+accepted.ID, "interrupted", "resumed")
+}
+
+func maintenanceRouter(t *testing.T, st *Store) http.Handler {
+	t.Helper()
+	r := router.NewRouter()
+	for _, route := range st.Routes(middleware.NewApiKeyAuthMiddleware("fixture-only").Handle) {
+		check(t, r.Handle(route.Method, route.Path, route.Handler))
+	}
+	return r
 }

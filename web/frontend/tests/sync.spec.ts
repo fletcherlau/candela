@@ -65,6 +65,8 @@ test("persistent backfill, duplicate submission, incremental and source failure"
     "已记录取消意图",
   );
   await expect(cancel).toBeFocused();
+  await expect(cancel).toHaveAttribute("aria-disabled", "true");
+  await expect(cancel).toHaveCSS("opacity", "0.5");
   await page.reload();
   expect(page.url()).toBe(cancelledURL);
   await expect(panel.getByText("已取消", { exact: true })).toBeVisible();

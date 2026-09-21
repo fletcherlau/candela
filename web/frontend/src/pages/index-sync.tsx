@@ -359,6 +359,7 @@ export function IndexSync({ onCompleted }: { onCompleted: () => void }) {
                   aria-disabled={
                     submitting || !["queued", "running"].includes(detail.state)
                   }
+                  aria-busy={submitting || detail.state === "cancelling"}
                   onClick={() => void cancelRun()}
                 >
                   取消任务
