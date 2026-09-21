@@ -23,7 +23,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldError,
+} from "@/components/ui/field";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   Empty,
@@ -124,6 +129,10 @@ function Method({ result }: { result?: Result | null }) {
 export function Rotation() {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState("");
+  const [dateError, setDateError] = useState<{
+    field: "start" | "end" | "range";
+    message: string;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [range, setRange] = useState<[number, number]>([0, 0]);
   const [period, setPeriod] = useState("12");
@@ -132,6 +141,7 @@ export function Rotation() {
   const requested = useRef<{ start: string; end: string } | null>(null);
   const request = useRef<AbortController | null>(null);
   async function load(target = requested.current) {
+    setDateError(null);
     requested.current = target;
     request.current?.abort();
     const controller = new AbortController();
@@ -229,14 +239,18 @@ export function Rotation() {
   const active = visible[activeIndex];
   const latest = days.at(-1);
   const missing = view?.range?.missing ?? false;
-  function change(a: number, b: number) {
+  function change(
+    a: number,
+    b: number,
+    field: "start" | "end" | "range" = "range",
+  ) {
     const first = Math.max(0, Math.min(a, b));
     const last = Math.min(days.length - 1, Math.max(a, b));
     if (!days[first] || !days[last]) return;
     const start = days[first].date,
       end = days[last].date;
     if (!validRange(start, end)) {
-      setError("日期无效或观察区间超过十年。");
+      setDateError({ field, message: "日期无效或观察区间超过十年。" });
       return;
     }
     setHover(null);
@@ -769,52 +783,101 @@ export function Rotation() {
                         </Button>
                       </div>
                       <FieldGroup className="rotation-date-fields">
-                        <Field>
+                        <Field
+                          data-invalid={
+                            dateError?.field === "start" ||
+                            dateError?.field === "range"
+                          }
+                        >
                           <FieldLabel htmlFor="rotation-start">
                             开始日期
                           </FieldLabel>
                           <Input
                             id="rotation-start"
+                            aria-invalid={
+                              dateError?.field === "start" ||
+                              dateError?.field === "range"
+                            }
+                            aria-describedby={
+                              dateError?.field === "start" ||
+                              dateError?.field === "range"
+                                ? "rotation-date-error"
+                                : undefined
+                            }
                             type="date"
                             value={fmt(days[controlLo]?.date)}
                             min={fmt(result.start)}
                             max={fmt(days[controlHi].date)}
                             onChange={(e) => {
                               if (!e.target.validity.valid) {
-                                setError("日期无效或超出已发布范围。");
+                                setDateError({
+                                  field: "start",
+                                  message: "日期无效或超出已发布范围。",
+                                });
                                 return;
                               }
                               const d = e.target.value.replaceAll("-", ""),
                                 i = days.findIndex((v) => v.date >= d);
                               if (d && i >= 0)
-                                change(Math.min(i, controlHi), controlHi);
+                                change(
+                                  Math.min(i, controlHi),
+                                  controlHi,
+                                  "start",
+                                );
                             }}
                           />
                         </Field>
-                        <Field>
+                        <Field
+                          data-invalid={
+                            dateError?.field === "end" ||
+                            dateError?.field === "range"
+                          }
+                        >
                           <FieldLabel htmlFor="rotation-end">
                             结束日期
                           </FieldLabel>
                           <Input
                             id="rotation-end"
+                            aria-invalid={
+                              dateError?.field === "end" ||
+                              dateError?.field === "range"
+                            }
+                            aria-describedby={
+                              dateError?.field === "end" ||
+                              dateError?.field === "range"
+                                ? "rotation-date-error"
+                                : undefined
+                            }
                             type="date"
                             value={fmt(days[controlHi]?.date)}
                             min={fmt(days[controlLo].date)}
                             max={fmt(result.end)}
                             onChange={(e) => {
                               if (!e.target.validity.valid) {
-                                setError("日期无效或超出已发布范围。");
+                                setDateError({
+                                  field: "end",
+                                  message: "日期无效或超出已发布范围。",
+                                });
                                 return;
                               }
                               const d = e.target.value.replaceAll("-", "");
                               let i = days.length - 1;
                               while (i >= 0 && days[i].date > d) i--;
                               if (d && i >= 0)
-                                change(controlLo, Math.max(i, controlLo));
+                                change(
+                                  controlLo,
+                                  Math.max(i, controlLo),
+                                  "end",
+                                );
                             }}
                           />
                         </Field>
                       </FieldGroup>
+                      {dateError && (
+                        <FieldError id="rotation-date-error">
+                          {dateError.message} 当前保留原观察区间。
+                        </FieldError>
+                      )}
                       <FieldGroup className="rotation-sliders">
                         <Field>
                           <FieldLabel htmlFor="rotation-range-start">

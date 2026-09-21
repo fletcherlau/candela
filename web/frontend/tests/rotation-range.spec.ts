@@ -135,9 +135,30 @@ test("ten years clamps history, rejects an extra day and keeps the continuous mo
   );
   await page.getByLabel("开始日期").fill("2016-08-30");
   await expect(page.getByRole("alert")).toContainText("超过十年");
+  await expect(page.getByLabel("开始日期")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(page.getByLabel("开始日期")).toHaveAccessibleDescription(
+    /超过十年/,
+  );
   await expect(page.locator(".rotation-metrics")).toContainText("2016-08-31");
   await page.getByLabel("结束日期").fill("2026-09-22");
   await expect(page.getByRole("alert")).toContainText("日期无效");
+  await expect(page.getByLabel("结束日期")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(page.getByLabel("结束日期")).toHaveAccessibleDescription(
+    /日期无效/,
+  );
+  await page.getByRole("radio", { name: "近一年", exact: true }).click();
+  await expect(page.getByLabel("开始日期")).toHaveValue("2025-08-31");
+  await expect(page.getByLabel("结束日期")).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
 test("publication changes can leave an empty interval, with a way back to available history", async ({
