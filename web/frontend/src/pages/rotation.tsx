@@ -48,8 +48,7 @@ import {
   number,
   publishedAt,
   holdingName,
-  holdingChange,
-  rangeSeries,
+  validRange,
   type View,
   type Result,
 } from "@/lib/rotation";
@@ -130,22 +129,31 @@ export function Rotation() {
   const [period, setPeriod] = useState("12");
   const [selected, setSelected] = useState<string[]>([]);
   const [hover, setHover] = useState<number | null>(null);
-  const initialized = useRef("");
+  const requested = useRef<{ start: string; end: string } | null>(null);
   const request = useRef<AbortController | null>(null);
-  async function load() {
+  async function load(target = requested.current) {
+    requested.current = target;
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
+    const timeout = window.setTimeout(
+      () => controller.abort(new Error("timeout")),
+      10000,
+    );
     setBusy(true);
     try {
-      const res = await fetch("/api/rotation/backtest", {
+      const query = target ? `?${new URLSearchParams(target)}` : "";
+      const res = await fetch(`/api/rotation/backtest/range${query}`, {
         signal: controller.signal,
+        cache: "no-store",
       });
       if (!res.ok)
         throw new Error(
           res.status === 401 || res.status === 403
             ? "登录已过期或无访问权限，请重新登录后刷新。"
-            : "暂时无法读取回测，请稍后重试。",
+            : res.status === 400
+              ? "日期无效或观察区间超过十年。"
+              : "暂时无法读取回测，请稍后重试。",
         );
       const next: View = await res.json();
       if (
@@ -154,102 +162,120 @@ export function Rotation() {
         (next.result &&
           (!Array.isArray(next.result.days) ||
             !Array.isArray(next.result.codes) ||
-            !Array.isArray(next.result.names)))
-      )
+            !Array.isArray(next.result.names) ||
+            (next.result.days.length > 0 &&
+              (!next.range ||
+                !Array.isArray(next.range.returns) ||
+                !Array.isArray(next.range.dd) ||
+                !Array.isArray(next.range.comparisons)))))
+      ) {
         throw new Error("回测结果格式不可用，请稍后重试。");
+      }
+      if (controller.signal.aborted || request.current !== controller) return;
       setView(next);
       setError("");
-      const key = next.result
-        ? `${next.result.start}:${next.result.end}:${next.result.days.length}`
-        : "";
-      if (next.result?.days.length && key !== initialized.current) {
-        const days = next.result.days;
-        const end = new Date(`${fmt(days.at(-1)!.date)}T00:00:00Z`);
-        end.setUTCFullYear(end.getUTCFullYear() - 1);
-        const start = end.toISOString().slice(0, 10).replaceAll("-", "");
-        setRange([
-          Math.max(
-            0,
-            days.findIndex((d) => d.date >= start),
-          ),
-          days.length - 1,
-        ]);
-        setHover(null);
-        setPeriod("12");
-      }
-      initialized.current = key;
+      if (next.range) setRange([next.range.startIndex, next.range.endIndex]);
     } catch (e) {
-      if (!controller.signal.aborted)
-        setError(e instanceof Error ? e.message : "暂时无法读取回测");
+      if (
+        request.current === controller &&
+        (!controller.signal.aborted ||
+          controller.signal.reason?.message === "timeout")
+      )
+        setError(
+          controller.signal.aborted
+            ? "回测读取超时，请稍后重试。"
+            : e instanceof Error
+              ? e.message
+              : "暂时无法读取回测",
+        );
     } finally {
-      if (!controller.signal.aborted) setBusy(false);
+      window.clearTimeout(timeout);
+      if (request.current === controller) setBusy(false);
     }
   }
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 60000);
+    const refreshVisible = () => {
+      if (!document.hidden) void load();
+    };
+    const timer = setInterval(refreshVisible, 60000);
+    document.addEventListener("visibilitychange", refreshVisible);
     return () => {
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisible);
       request.current?.abort();
     };
   }, []);
   const result = view?.result;
   const days = result?.days ?? [];
-  const lo = Math.min(range[0], Math.max(0, days.length - 1)),
-    hi = Math.min(range[1], Math.max(0, days.length - 1));
+  // The displayed range and its statistics always come from the same response.
+  // Pending controls do not relabel or slice the last successful publication.
+  const lo = view?.range?.startIndex ?? 0;
+  const hi = view?.range?.endIndex ?? -1;
+  const controlLo = Math.max(0, Math.min(range[0], days.length - 1));
+  const controlHi = Math.max(0, Math.min(range[1], days.length - 1));
   const visible = useMemo(() => days.slice(lo, hi + 1), [days, lo, hi]);
-  const series = useMemo(
-    () => rangeSeries(visible, lo, result?.codes.length ?? 0),
-    [visible, lo, result?.codes.length],
-  );
+  const series = view?.range ?? {
+    returns: [],
+    dd: [],
+    comparisons: [],
+    gain: null,
+    maxdd: null,
+  };
   const activeIndex = Math.max(
     0,
     Math.min(hover ?? visible.length - 1, visible.length - 1),
   );
   const active = visible[activeIndex];
   const latest = days.at(-1);
-  const missing = visible.some(
-    (d) =>
-      !finite(d.nav) ||
-      d.nav <= 0 ||
-      !finite(d.weight) ||
-      !finite(d.cashWeight) ||
-      d.holding == null ||
-      result?.codes.some((_, j) => !finite(d.benchmarks?.[j])),
-  );
+  const missing = view?.range?.missing ?? false;
   function change(a: number, b: number) {
+    const first = Math.max(0, Math.min(a, b));
+    const last = Math.min(days.length - 1, Math.max(a, b));
+    if (!days[first] || !days[last]) return;
+    const start = days[first].date,
+      end = days[last].date;
+    if (!validRange(start, end)) {
+      setError("日期无效或观察区间超过十年。");
+      return;
+    }
     setHover(null);
     setPeriod("");
-    setRange([
-      Math.max(0, Math.min(a, b)),
-      Math.min(days.length - 1, Math.max(a, b)),
-    ]);
+    setRange([first, last]);
+    void load({ start, end });
   }
   function preset(value: string) {
     if (!value || !days.length) return;
-    let start = 0;
-    if (value !== "all") {
-      const end = new Date(`${fmt(days.at(-1)!.date)}T00:00:00Z`);
-      end.setUTCMonth(end.getUTCMonth() - Number(value));
-      start = Math.max(
-        0,
-        days.findIndex(
-          (d) => d.date >= end.toISOString().slice(0, 10).replaceAll("-", ""),
-        ),
-      );
+    if (value === "12") {
+      setHover(null);
+      setPeriod(value);
+      void load(null);
+      return;
     }
-    change(start, days.length - 1);
+    const end = new Date(`${fmt(days.at(-1)!.date)}T00:00:00Z`);
+    end.setUTCMonth(end.getUTCMonth() - Number(value));
+    const first = Math.max(
+      0,
+      days.findIndex(
+        (d) => d.date >= end.toISOString().slice(0, 10).replaceAll("-", ""),
+      ),
+    );
+    change(first, days.length - 1);
     setPeriod(value);
   }
   function zoom(scale: number) {
-    const mid = (lo + hi) / 2,
-      half = Math.max(1, ((hi - lo) * scale) / 2);
+    const mid = (controlLo + controlHi) / 2,
+      half = Math.max(1, ((controlHi - controlLo) * scale) / 2);
     change(Math.floor(mid - half), Math.ceil(mid + half));
   }
   function pan(direction: number) {
-    const step = Math.max(1, Math.round((hi - lo + 1) / 3)) * direction;
-    const shift = Math.max(-lo, Math.min(days.length - 1 - hi, step));
-    change(lo + shift, hi + shift);
+    const step =
+      Math.max(1, Math.round((controlHi - controlLo + 1) / 3)) * direction;
+    const shift = Math.max(
+      -controlLo,
+      Math.min(days.length - 1 - controlHi, step),
+    );
+    change(controlLo + shift, controlHi + shift);
   }
   const options = useMemo(() => {
     const common: EChartsCoreOption = {
@@ -459,8 +485,10 @@ export function Rotation() {
                   variant="outline"
                   size="icon"
                   aria-label="刷新回测"
-                  disabled={busy}
-                  onClick={() => void load()}
+                  aria-disabled={busy}
+                  onClick={() => {
+                    if (!busy) void load();
+                  }}
                 >
                   <RefreshCw />
                 </Button>
@@ -472,9 +500,15 @@ export function Rotation() {
                 <AlertDescription>
                   {error}
                   {result &&
-                    " 当前保留上次读取的历史结果，不能据此判断已更新。"}
+                    ` 当前保留上次读取的历史结果，观察区间 ${fmt(view?.range?.start)} 至 ${fmt(view?.range?.end)}，不能据此判断已更新。`}
                 </AlertDescription>
               </Alert>
+            )}
+            {busy && view?.range && (
+              <p className="rotation-caption" aria-live="polite">
+                正在读取回测区间。当前图表仍显示 {fmt(view.range.start)} 至{" "}
+                {fmt(view.range.end)}。
+              </p>
             )}
             {view && (
               <p role="status" className="rotation-caption">
@@ -517,7 +551,8 @@ export function Rotation() {
                 </p>
                 {result && (
                   <p className="rotation-caption">
-                    较前一回测交易日：{holdingChange(days, result)}
+                    较前一回测交易日：
+                    {view.holdingChange || "前后交易日字段不足，无法比较"}
                     。权重变化可能来自价格波动，不等同于调仓成交。
                   </p>
                 )}
@@ -534,6 +569,24 @@ export function Rotation() {
                   所需行情准备完成后，这里会显示收益与持仓历史。缺失数据不表示空仓或零收益。
                 </EmptyDescription>
               </EmptyHeader>
+            </Empty>
+          )}
+          {result && days.length > 0 && visible.length === 0 && (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>
+                  <h2>所选区间暂无历史数据</h2>
+                </EmptyTitle>
+                <EmptyDescription>
+                  {requested.current
+                    ? `${fmt(requested.current.start)} 至 ${fmt(requested.current.end)} 与当前已发布历史没有交集。`
+                    : "当前观察区间没有有效历史。"}
+                  未以其他日期替代，也不显示零收益。
+                </EmptyDescription>
+              </EmptyHeader>
+              <Button variant="outline" onClick={() => preset("12")}>
+                返回近一年
+              </Button>
             </Empty>
           )}
           {result && visible.length > 0 && (
@@ -559,7 +612,7 @@ export function Rotation() {
                       ["3", "近三月"],
                       ["12", "近一年"],
                       ["36", "近三年"],
-                      ["all", "全部"],
+                      ["120", "近十年"],
                     ].map(([v, n]) => (
                       <ToggleGroupItem key={v} value={v}>
                         {n}
@@ -680,7 +733,7 @@ export function Rotation() {
                           variant="outline"
                           size="icon"
                           aria-label="向前平移"
-                          disabled={lo === 0}
+                          disabled={controlLo === 0}
                           onClick={() => pan(-1)}
                         >
                           <ArrowLeft />
@@ -689,7 +742,7 @@ export function Rotation() {
                           variant="outline"
                           size="icon"
                           aria-label="放大区间"
-                          disabled={hi - lo < 2}
+                          disabled={controlHi - controlLo < 2}
                           onClick={() => zoom(0.5)}
                         >
                           <ZoomIn />
@@ -698,7 +751,9 @@ export function Rotation() {
                           variant="outline"
                           size="icon"
                           aria-label="缩小区间"
-                          disabled={lo === 0 && hi === days.length - 1}
+                          disabled={
+                            controlLo === 0 && controlHi === days.length - 1
+                          }
                           onClick={() => zoom(2)}
                         >
                           <ZoomOut />
@@ -707,7 +762,7 @@ export function Rotation() {
                           variant="outline"
                           size="icon"
                           aria-label="向后平移"
-                          disabled={hi === days.length - 1}
+                          disabled={controlHi === days.length - 1}
                           onClick={() => pan(1)}
                         >
                           <ArrowRight />
@@ -721,13 +776,18 @@ export function Rotation() {
                           <Input
                             id="rotation-start"
                             type="date"
-                            value={fmt(days[lo].date)}
+                            value={fmt(days[controlLo]?.date)}
                             min={fmt(result.start)}
-                            max={fmt(days[hi].date)}
+                            max={fmt(days[controlHi].date)}
                             onChange={(e) => {
+                              if (!e.target.validity.valid) {
+                                setError("日期无效或超出已发布范围。");
+                                return;
+                              }
                               const d = e.target.value.replaceAll("-", ""),
                                 i = days.findIndex((v) => v.date >= d);
-                              if (d && i >= 0) change(Math.min(i, hi), hi);
+                              if (d && i >= 0)
+                                change(Math.min(i, controlHi), controlHi);
                             }}
                           />
                         </Field>
@@ -738,14 +798,19 @@ export function Rotation() {
                           <Input
                             id="rotation-end"
                             type="date"
-                            value={fmt(days[hi].date)}
-                            min={fmt(days[lo].date)}
+                            value={fmt(days[controlHi]?.date)}
+                            min={fmt(days[controlLo].date)}
                             max={fmt(result.end)}
                             onChange={(e) => {
+                              if (!e.target.validity.valid) {
+                                setError("日期无效或超出已发布范围。");
+                                return;
+                              }
                               const d = e.target.value.replaceAll("-", "");
                               let i = days.length - 1;
                               while (i >= 0 && days[i].date > d) i--;
-                              if (d && i >= 0) change(lo, Math.max(i, lo));
+                              if (d && i >= 0)
+                                change(controlLo, Math.max(i, controlLo));
                             }}
                           />
                         </Field>
@@ -760,10 +825,13 @@ export function Rotation() {
                             type="range"
                             min="0"
                             max={days.length - 1}
-                            value={lo}
-                            aria-valuetext={fmt(days[lo].date)}
+                            value={controlLo}
+                            aria-valuetext={fmt(days[controlLo].date)}
                             onChange={(e) =>
-                              change(Math.min(Number(e.target.value), hi), hi)
+                              change(
+                                Math.min(Number(e.target.value), controlHi),
+                                controlHi,
+                              )
                             }
                           />
                         </Field>
@@ -776,10 +844,13 @@ export function Rotation() {
                             type="range"
                             min="0"
                             max={days.length - 1}
-                            value={hi}
-                            aria-valuetext={fmt(days[hi].date)}
+                            value={controlHi}
+                            aria-valuetext={fmt(days[controlHi].date)}
                             onChange={(e) =>
-                              change(lo, Math.max(Number(e.target.value), lo))
+                              change(
+                                controlLo,
+                                Math.max(Number(e.target.value), controlLo),
+                              )
                             }
                           />
                         </Field>
@@ -937,11 +1008,10 @@ export function Rotation() {
               <summary>尚未提供的数据</summary>
               <div className="rotation-method">
                 <p>
-                  14:45 固定参考尚未接入；每日收盘结果独立发布，缺失字段及原因见每日数据区。
+                  14:45
+                  固定参考尚未接入；每日收盘结果独立发布，缺失字段及原因见每日数据区。
                 </p>
-                <p>
-                  本页不推测指标变化原因，不提供实际账户数据或定投模拟。
-                </p>
+                <p>本页不推测指标变化原因，不提供实际账户数据或定投模拟。</p>
               </div>
             </details>
           </section>

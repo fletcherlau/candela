@@ -19,7 +19,22 @@ export type Result = {
   names: string[];
   costBps: number | null;
 };
+export type RangeWindow = {
+  start: string;
+  end: string;
+  startIndex: number;
+  endIndex: number;
+  returns: (number | null)[];
+  dd: (number | null)[];
+  comparisons: (number | null)[][];
+  gain: number | null;
+  maxdd: number | null;
+  missing: boolean;
+};
 export type View = {
+  range: RangeWindow | null;
+  holdingChange: string;
+  revision: number;
   status: string;
   message: string;
   updatedAt: string;
@@ -53,60 +68,26 @@ export function holdingName(day: Day | undefined, result: Result) {
   const index = result.codes.indexOf(day.holding);
   return index >= 0 ? result.names[index] || day.holding : day.holding;
 }
-export function holdingChange(days: Day[], result: Result) {
-  const current = days.at(-1),
-    previous = days.at(-2);
+// Date validation is a control constraint, not a return/portfolio calculation.
+export function validRange(start: string, end: string) {
+  const a = new Date(`${fmt(start)}T00:00:00Z`),
+    b = new Date(`${fmt(end)}T00:00:00Z`);
   if (
-    !current ||
-    !previous ||
-    [current, previous].some(
-      (d) => d.holding == null || !finite(d.weight) || !finite(d.cashWeight),
-    )
+    !Number.isFinite(+a) ||
+    !Number.isFinite(+b) ||
+    a.toISOString().slice(0, 10).replaceAll("-", "") !== start ||
+    b.toISOString().slice(0, 10).replaceAll("-", "") !== end
   )
-    return "前后交易日字段不足，无法比较";
-  if (current.holding !== previous.holding)
-    return `${holdingName(previous, result)} → ${holdingName(current, result)}`;
-  const delta = current.weight! - previous.weight!;
-  if (
-    Math.abs(delta) < 1e-10 &&
-    Math.abs(current.cashWeight! - previous.cashWeight!) < 1e-10
-  )
-    return "标的与收盘权重相同";
-  return `标的相同；权重变化 ${delta > 0 ? "+" : ""}${(delta * 100).toFixed(2)} 个百分点`;
-}
-export function rangeSeries(days: Day[], lo: number, count: number) {
-  if (!days.length)
-    return { returns: [], dd: [], comparisons: [], gain: null, maxdd: null };
-  // Preserve initial purchase fees over the full history, and the existing slice convention.
-  const base = lo === 0 ? 1 : days[0].nav;
-  const returns = days.map((d) =>
-    finite(base) && base > 0 && finite(d.nav) && d.nav > 0
-      ? d.nav / base - 1
-      : null,
-  );
-  let peak = base,
-    complete = finite(base) && base > 0;
-  const dd = days.map((d) => {
-    if (!finite(d.nav) || d.nav <= 0) complete = false;
-    if (!complete || !finite(peak) || !finite(d.nav)) return null;
-    peak = Math.max(peak, d.nav);
-    return d.nav / peak - 1;
-  });
-  const comparisons = Array.from({ length: count }, (_, j) =>
-    days.map((d) => {
-      const first = days[0].benchmarks?.[j],
-        value = d.benchmarks?.[j];
-      return finite(first) && first > 0 && finite(value) && value > 0
-        ? value / first - 1
-        : null;
-    }),
-  );
-  return {
-    returns,
-    dd,
-    comparisons,
-    gain: days.length > 1 ? (returns.at(-1) ?? null) : null,
-    maxdd:
-      days.length > 1 && complete ? Math.min(0, ...(dd as number[])) : null,
-  };
+    return false;
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(new Date())
+    .replaceAll("-", "");
+  const limit = new Date(a);
+  limit.setUTCFullYear(limit.getUTCFullYear() + 10);
+  return a <= b && b <= limit && end <= today;
 }

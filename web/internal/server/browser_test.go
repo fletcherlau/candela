@@ -72,6 +72,11 @@ func TestBrowserHarness(t *testing.T) {
 			}
 			return
 		}
+		if r.URL.Path == "/api/v1/rotation/backtest/range" {
+			target, _ := url.Parse("http://127.0.0.1:18085")
+			httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/api/v1/rotation/backtest" {
 			if previewFile != "" {
 				w.Write(published)
