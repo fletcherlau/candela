@@ -194,3 +194,36 @@ test("empty capture archives remain distinct from read failures", async ({
   await expect(panel).toContainText("历史日线和旧盘中信号不等于");
   await expect(panel.getByRole("alert")).toHaveCount(0);
 });
+
+test("a stalled browser read times out and restores manual retry", async ({
+  page,
+}) => {
+  await page.clock.install();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/rotation/reference-captures", async (route) => {
+    await gate;
+    await route.abort().catch(() => {});
+  });
+  await page.goto("/admin/data");
+  const panel = page.getByRole("region", { name: "14:45 参考采集" });
+  await expect(
+    panel.getByLabel("正在读取采集记录", { exact: true }),
+  ).toBeVisible();
+  await page.clock.fastForward(16000);
+  try {
+    await expect(panel.getByRole("alert")).toContainText("读取超时");
+    await expect(
+      panel.getByRole("button", { name: "重新读取采集记录" }),
+    ).toHaveAttribute("aria-disabled", "false");
+  } finally {
+    release();
+  }
+  await page.unroute("**/api/rotation/reference-captures");
+  await panel.getByRole("button", { name: "重新读取采集记录" }).click();
+  await expect(
+    panel.getByRole("heading", { name: "2025-01-07 采集详情" }),
+  ).toBeVisible();
+});

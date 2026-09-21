@@ -160,6 +160,8 @@ export function RotationCaptures() {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+    const deadline = setTimeout(() => controller.abort(), 15000);
     setLoading(true);
     setError("");
     async function load() {
@@ -186,14 +188,25 @@ export function RotationCaptures() {
           throw new Error("采集详情日期或内容异常，请稍后重试。");
         if (!controller.signal.aborted) setDetail(result.run);
       } catch (err) {
-        if (!controller.signal.aborted)
-          setError(err instanceof Error ? err.message : "采集记录读取失败。");
+        if (active)
+          setError(
+            controller.signal.aborted
+              ? "采集记录读取超时，请重新读取。"
+              : err instanceof Error
+                ? err.message
+                : "采集记录读取失败。",
+          );
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        clearTimeout(deadline);
+        if (active) setLoading(false);
       }
     }
     void load();
-    return () => controller.abort();
+    return () => {
+      active = false;
+      clearTimeout(deadline);
+      controller.abort();
+    };
   }, [selected, refresh]);
   return (
     <ResearchTheme className="min-w-0">
