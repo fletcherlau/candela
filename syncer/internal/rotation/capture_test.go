@@ -23,6 +23,9 @@ func captureAPI(t *testing.T, s *Service) string {
 			t.Fatal(err)
 		}
 	}
+	if err := routes.Handle(http.MethodGet, "/api/v1/rotation/daily", middleware.NewApiKeyAuthMiddleware("fixture-only").Handle(s.DailyHandler().ServeHTTP)); err != nil {
+		t.Fatal(err)
+	}
 	server := httptest.NewServer(routes)
 	t.Cleanup(server.Close)
 	return server.URL + capturePath

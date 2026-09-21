@@ -65,6 +65,23 @@ func (s *Service) DailyHandler() http.Handler {
 				v.Message = "数据正在更新，保留已发布完整结果"
 			}
 		}
+		var reference []byte
+		refErr := s.DB.QueryRowContext(r.Context(), "SELECT status,payload FROM rotation_daily WHERE trade_date=? AND basis='reference_1445'", date).Scan(&v.ReferenceStatus, &reference)
+		if refErr != nil && refErr != sql.ErrNoRows {
+			http.Error(w, "参考数据暂不可用", 503)
+			return
+		}
+		if len(reference) > 0 {
+			if json.Unmarshal(reference, &v.Reference) != nil {
+				http.Error(w, "参考结果暂不可用", 503)
+				return
+			}
+			if v.Close == nil {
+				v.Status = "ready"
+				v.Message = "固定 14:45 参考已发布"
+				v.Available = v.Reference.Available
+			}
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if r.Method != http.MethodHead {
 			_ = json.NewEncoder(w).Encode(v)

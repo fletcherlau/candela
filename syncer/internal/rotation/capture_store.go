@@ -88,6 +88,14 @@ func (s *Service) captureRun(ctx context.Context, date string) (CaptureRun, erro
 		return CaptureRun{}, err
 	}
 	defer tx.Rollback()
+	run, err := readCaptureRun(ctx, tx, date)
+	if err != nil {
+		return CaptureRun{}, err
+	}
+	return run, tx.Commit()
+}
+
+func readCaptureRun(ctx context.Context, tx *sql.Tx, date string) (CaptureRun, error) {
 	run, err := scanCapture(tx.QueryRowContext(ctx, "SELECT "+captureColumns+" FROM rotation_capture_run WHERE trade_date=?", date))
 	if err != nil {
 		return CaptureRun{}, err
@@ -105,7 +113,7 @@ func (s *Service) captureRun(ctx context.Context, date string) (CaptureRun, erro
 		}
 		run.Items = append(run.Items, item)
 	}
-	return run, tx.Commit()
+	return run, nil
 }
 func (s *Service) captureList(ctx context.Context) ([]CaptureRun, error) {
 	rows, err := s.DB.QueryContext(ctx, "SELECT "+captureColumns+" FROM rotation_capture_run ORDER BY trade_date DESC LIMIT 50")

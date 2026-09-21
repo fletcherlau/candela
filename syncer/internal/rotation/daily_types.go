@@ -6,6 +6,8 @@ import (
 )
 
 type DailyCard struct {
+	SourceTime string            `json:"sourceTime,omitempty"`
+	CapturedAt string            `json:"capturedAt,omitempty"`
 	Code       string            `json:"code"`
 	Name       string            `json:"name"`
 	Price      *float64          `json:"price"`

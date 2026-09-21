@@ -78,7 +78,7 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	var payload []byte
 	var published any
 	if available == len(core.RotationCodes) {
-		result := s.dailyResult(date, panels, prices, reasons)
+		result := s.dailyResult(date, panels, prices, reasons, CaptureParams{Version: indicatorVersion, QuantileWindow: s.quantileWindow()})
 		payload, err = json.Marshal(result)
 		if err != nil {
 			return err
@@ -102,9 +102,9 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	return tx.Commit()
 }
 
-func (s *Service) dailyResult(date string, panels map[string][]core.DailyBarAdj, prices map[string]float64, reasons map[string]string) DailyResult {
-	result := DailyResult{TradeDate: date, Basis: "close", Available: len(prices), Source: "Tushare 基金日线及复权因子", Version: indicatorVersion, QuantileWindow: s.quantileWindow(), PublishedAt: s.now().UTC().Format(time.RFC3339Nano)}
-	cards := core.ComputeRotationCards(panels, s.quantileWindow())
+func (s *Service) dailyResult(date string, panels map[string][]core.DailyBarAdj, prices map[string]float64, reasons map[string]string, params CaptureParams) DailyResult {
+	result := DailyResult{TradeDate: date, Basis: "close", Available: len(prices), Source: "Tushare 基金日线及复权因子", Version: params.Version, QuantileWindow: params.QuantileWindow, PublishedAt: s.now().UTC().Format(time.RFC3339Nano)}
+	cards := core.ComputeRotationCards(panels, params.QuantileWindow)
 	completeRank := true
 	for _, card := range cards {
 		if finiteNumber(card.Score) == nil {
