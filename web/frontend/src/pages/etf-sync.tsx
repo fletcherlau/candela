@@ -146,9 +146,11 @@ function isBatch(value: unknown, detail = false): value is Batch {
 }
 class BatchRequestError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  validationField: string;
+  constructor(message: string, status: number, validationField: string) {
     super(message);
     this.status = status;
+    this.validationField = validationField;
   }
 }
 async function read(path: string, options: RequestInit = {}) {
@@ -171,6 +173,7 @@ async function read(path: string, options: RequestInit = {}) {
               ? "同步请求无效，请检查代码、日期和启用名单；结束日期不能晚于北京时间今天。"
               : "批次服务暂时不可用，请重新读取。",
       response.status,
+      response.headers.get("X-Validation-Field") || "",
     );
   return response.json();
 }
@@ -350,8 +353,18 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
             : "批次已保存，后台继续执行；离开或刷新页面不会取消任务。",
       );
     } catch (err) {
+      if (
+        creating &&
+        mode === "historical" &&
+        err instanceof BatchRequestError &&
+        err.status === 400 &&
+        err.validationField === "range"
+      ) {
+        setRangeError("请选择有效的起止日期；结束日期不能晚于北京时间今天。");
+      }
       setOperationError(
-        err instanceof BatchRequestError && [400, 401, 403, 404, 409].includes(err.status)
+        err instanceof BatchRequestError &&
+          [400, 401, 403, 404, 409].includes(err.status)
           ? message(err)
           : `${message(err)} 操作可能已被接受，请先刷新批次列表确认。`,
       );

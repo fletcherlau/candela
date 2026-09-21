@@ -71,6 +71,9 @@ func (a *application) etfSyncs(w http.ResponseWriter, r *http.Request) {
 			}
 			// The synchronization service owns the clock and the final cutoff.
 			if !validScope {
+				if input.Mode == "historical" {
+					w.Header().Set("X-Validation-Field", "range")
+				}
 				http.Error(w, "请选择有效的同步方式和起止日期。", 400)
 				return
 			}
@@ -104,6 +107,10 @@ func (a *application) etfSyncs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "批次不存在。", 404)
 		return
 	case 400:
+		// Forward only this explicit field marker, never upstream error details.
+		if res.Header.Get("X-Validation-Field") == "range" {
+			w.Header().Set("X-Validation-Field", "range")
+		}
 		http.Error(w, "提交范围或恢复条件不满足，请检查批次。", 400)
 		return
 	case 409:

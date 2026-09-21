@@ -301,15 +301,33 @@ for (const width of [1440, 820, 390, 320]) {
   });
 }
 
-test("rejected historical end date is explicit and does not claim acceptance", async ({ page }) => {
+test("rejected historical end date is explicit and does not claim acceptance", async ({
+  page,
+}) => {
   await page.goto("/admin/data");
   const panel = page.getByRole("region", { name: "ETF 批量同步" });
   await panel.getByRole("radio", { name: "历史重同步", exact: true }).click();
   await panel.getByLabel("开始日期", { exact: true }).fill("2025-01-02");
   await panel.getByLabel("结束日期", { exact: true }).fill("2025-01-04");
-  const rejected = page.waitForResponse(response => response.url().endsWith("/api/etf-syncs") && response.request().method() === "POST");
-  await panel.getByRole("button", { name: "重同步全部启用 ETF", exact: true }).click();
+  const rejected = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/etf-syncs") &&
+      response.request().method() === "POST",
+  );
+  await panel
+    .getByRole("button", { name: "重同步全部启用 ETF", exact: true })
+    .click();
   expect((await rejected).status()).toBe(400);
-  await expect(panel.getByRole("alert")).toContainText("结束日期不能晚于北京时间今天");
-  await expect(panel.getByRole("alert")).not.toContainText("操作可能已被接受");
+  const failure = panel
+    .getByRole("alert")
+    .filter({ hasText: "ETF 批次读取或操作失败" });
+  await expect(failure).toContainText("结束日期不能晚于北京时间今天");
+  await expect(failure).not.toContainText("操作可能已被接受");
+  await expect(panel.getByLabel("结束日期", { exact: true })).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(
+    panel.getByLabel("结束日期", { exact: true }),
+  ).toHaveAccessibleDescription(/结束日期不能晚于北京时间今天/);
 });

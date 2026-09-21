@@ -37,7 +37,13 @@ npm run test:etf
 
 浏览器测试会启动 loopback 18081 网页与 18089 ETF 后端，使用真实签名凭证及隔离数据库；`npm run test:etf -- --headed` 可打开并重现操作。请勿与其他会重置 `candela_sync_test` 的套件并发运行。当前机器另需 `LD_LIBRARY_PATH=/tmp/candela-browser-libs/root/usr/lib/x86_64-linux-gnu` 和 `FONTCONFIG_FILE=/tmp/candela-browser-fonts.conf`。
 
-初轮 13 项浏览器检查通过，包含 1440／820／390／320px、键盘、固定范围与刷新、取消、错误／超时、登录失效、日期输入错误。另发现后台已明确拒绝请求时仍显示“可能已接受”的提示，已修复并安排重验。全量回归及双轴审查结果将在交付前补入。
+完整 syncer、web、feishubot race 测试与 syncer 构建、前端类型／构建、design:check 通过。syncer 完整回归使用五个各自隔离测试库；没有生产数据写入。
+
+浏览器共 28 项通过：ETF 14 项、恢复管理 9 项、设计 5 项。覆盖 1440／820／390／320px、键盘、固定范围与刷新、取消、错误／超时、登录失效及日期错误。修复了明确拒绝请求仍显示“可能已接受”的提示；审查进一步要求服务端日期错误关联输入框，已通过白名单 `X-Validation-Field: range` 传递到 `FieldError`，不透传上游详情，日期控件的 `aria-invalid` 和描述同步更新。此拒绝路径再次通过真实 HTTP／MySQL 浏览器验证，受影响的历史 HTTP 和网页竞态测试也通过。
+
+[桌面截图](../design/etf-history/desktop.png) · [320px 手机截图](../design/etf-history/mobile.png)。截图已实际查看，表单、日期范围、长标识及对象详情无整页横向溢出；数据均为隔离测试行情，不代表真实源覆盖。
+
+双轴审查以用户固定基准 `3c17415375fea02205dcb34a154875f79bb581db` 进行。需求轴未发现新增问题；规范轴指出的服务端日期错误字段关联已修复，最终复核待回填。
 
 ## 剩余工作
 

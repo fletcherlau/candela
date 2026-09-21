@@ -38,17 +38,17 @@ func (s *ETFService) submit(ctx context.Context, input ETFRequest, parent string
 	switch mode {
 	case "incremental":
 		if start != "" || end != "" {
-			return ETFBatch{}, false, &etfRequestError{400, "增量同步不接受指定日期，请选择历史重同步。"}
+			return ETFBatch{}, false, &etfRequestError{status: 400, message: "增量同步不接受指定日期，请选择历史重同步。"}
 		}
 		end = today
 	case "historical":
 		from, firstErr := time.Parse("20060102", start)
 		_, lastErr := time.Parse("20060102", end)
 		if firstErr != nil || lastErr != nil || from.Year() < 1 || start > end || end > today {
-			return ETFBatch{}, false, &etfRequestError{400, "请选择有效的历史起止日期，结束日期不能晚于北京时间今天。"}
+			return ETFBatch{}, false, &etfRequestError{status: 400, message: "请选择有效的历史起止日期，结束日期不能晚于北京时间今天。", field: "range"}
 		}
 	default:
-		return ETFBatch{}, false, &etfRequestError{400, "同步方式无效。"}
+		return ETFBatch{}, false, &etfRequestError{status: 400, message: "同步方式无效。"}
 	}
 	codes := input.Codes
 	tx, err := s.Store.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
@@ -76,7 +76,7 @@ func (s *ETFService) submit(ctx context.Context, input ETFRequest, parent string
 			return ETFBatch{}, false, e
 		}
 		if original.State == "queued" || original.State == "running" {
-			return ETFBatch{}, false, &etfRequestError{409, "原批次仍在执行，请先等待结果。"}
+			return ETFBatch{}, false, &etfRequestError{status: 409, message: "原批次仍在执行，请先等待结果。"}
 		}
 		mode, start, end = original.Mode, original.StartDate, original.EndDate
 		for _, item := range original.Items {
@@ -86,7 +86,7 @@ func (s *ETFService) submit(ctx context.Context, input ETFRequest, parent string
 			}
 		}
 		if len(codes) == 0 {
-			return ETFBatch{}, false, &etfRequestError{409, "没有失败对象需要重试。"}
+			return ETFBatch{}, false, &etfRequestError{status: 409, message: "没有失败对象需要重试。"}
 		}
 	} else if len(codes) == 0 {
 		rows, e := tx.QueryContext(ctx, "SELECT ts_code FROM instrument WHERE sync_enabled=1 ORDER BY ts_code")
@@ -110,12 +110,12 @@ func (s *ETFService) submit(ctx context.Context, input ETFRequest, parent string
 		}
 	}
 	if len(codes) == 0 || len(codes) > 500 {
-		return ETFBatch{}, false, &etfRequestError{400, "请选择 1 至 500 只 ETF。"}
+		return ETFBatch{}, false, &etfRequestError{status: 400, message: "请选择 1 至 500 只 ETF。"}
 	}
 	unique := map[string]bool{}
 	for _, code := range codes {
 		if !etfCode.MatchString(code) {
-			return ETFBatch{}, false, &etfRequestError{400, "ETF 代码格式无效。"}
+			return ETFBatch{}, false, &etfRequestError{status: 400, message: "ETF 代码格式无效。"}
 		}
 		unique[code] = true
 	}

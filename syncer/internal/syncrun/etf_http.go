@@ -28,6 +28,9 @@ func (s *ETFService) etfHandler(w http.ResponseWriter, r *http.Request) {
 		var invalid *etfRequestError
 		switch {
 		case errors.As(err, &invalid):
+			if invalid.field != "" {
+				w.Header().Set("X-Validation-Field", invalid.field)
+			}
 			send(invalid.status, map[string]string{"error": invalid.message})
 		case errors.Is(err, sql.ErrNoRows):
 			send(404, map[string]string{"error": "批次不存在。"})

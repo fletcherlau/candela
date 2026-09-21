@@ -38,6 +38,7 @@ func newRunID() (string, error) {
 var etfCode = regexp.MustCompile(`^[0-9]{6}\.(SH|SZ)$`)
 
 type etfRequestError struct {
+	field   string
 	status  int
 	message string
 }
