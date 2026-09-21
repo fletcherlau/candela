@@ -69,12 +69,13 @@ func TestMySQLFullBackfillAndIncremental(t *testing.T) {
 	if duplicate || accepted.State != "queued" || accepted.StartDate != HistoryFloor || accepted.EndDate != "20070108" || count(t, db, "index_daily") != 0 || f.calls != 0 {
 		t.Fatalf("acceptance: %+v", accepted)
 	}
+	versionsBeforeReplay := count(t, db, "schema_migration")
 	// Simulate DDL applied before the migration version could be recorded.
 	_, err = db.Exec("DELETE FROM schema_migration WHERE version=1")
 	check(t, err)
 	// Replay preserves accepted work and doesn't seed an ETF Instrument.
 	check(t, schema.Ensure(ctx, db))
-	if count(t, db, "schema_migration") != 2 {
+	if count(t, db, "schema_migration") != versionsBeforeReplay {
 		t.Fatal("migration not versioned")
 	}
 	claimed, err := st.Claim(ctx)

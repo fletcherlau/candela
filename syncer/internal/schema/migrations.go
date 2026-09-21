@@ -58,6 +58,15 @@ var migrations = [][]string{{
 	`CREATE TABLE IF NOT EXISTS rotation_calendar (
  cal_date CHAR(8) PRIMARY KEY, is_open TINYINT NOT NULL
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+}, {
+	`CREATE TABLE IF NOT EXISTS rotation_daily (
+ trade_date CHAR(8) NOT NULL, basis VARCHAR(16) NOT NULL,
+ revision BIGINT NOT NULL, status VARCHAR(20) NOT NULL,
+ available INT NOT NULL DEFAULT 0, message VARCHAR(300) NOT NULL DEFAULT '',
+ payload JSON NULL, published_at DATETIME(6) NULL,
+ updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ PRIMARY KEY(trade_date,basis)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }}
 
 func migrate(ctx context.Context, db *sql.DB) error {

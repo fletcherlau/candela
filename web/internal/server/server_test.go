@@ -29,6 +29,18 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	var syncCalls atomic.Int32
 	var syncFailure atomic.Bool
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/rotation/daily" {
+			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" {
+				t.Error("incorrect daily credential boundary")
+			}
+			if syncFailure.Load() {
+				w.WriteHeader(500)
+				io.WriteString(w, "server-only-secret database details")
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"status": "ready", "tradeDate": r.URL.Query().Get("tradeDate"), "close": nil})
+			return
+		}
 		if r.URL.Path == "/api/v1/rotation/backtest" {
 			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" {
 				t.Error("incorrect backtest credential boundary")
@@ -89,7 +101,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	wrong, _ := rsa.GenerateKey(rand.Reader, 2048)
 	valid := sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), key)
 	for _, token := range []string{"", "not-a-jwt", sign(jwks.URL, "other-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(-time.Hour).Unix(), key), sign("https://evil.invalid", "demo-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), wrong)} {
-		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
+		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/daily", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
 			req := httptest.NewRequest("GET", path, nil)
 			req.Header.Set("Cf-Access-Jwt-Assertion", token)
 			rec := httptest.NewRecorder()
@@ -99,7 +111,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			}
 		}
 	}
-	for _, path := range []string{"/", "/market", "/admin", "/admin/data", "/api/catalog", "/api/rotation/backtest", "/strategies/four-etf-rotation"} {
+	for _, path := range []string{"/", "/market", "/admin", "/admin/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/daily", "/strategies/four-etf-rotation"} {
 		req := httptest.NewRequest("GET", path, nil)
 		req.Header.Set("Cf-Access-Jwt-Assertion", valid)
 		rec := httptest.NewRecorder()
@@ -108,6 +120,22 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			t.Fatalf("authorized %s: %d %s", path, rec.Code, rec.Body.String())
 		}
 	}
+	t.Run("daily date query is forwarded and upstream errors are sanitized", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/rotation/daily?tradeDate=20250102", nil)
+		req.Header.Set("Cf-Access-Jwt-Assertion", valid)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+		if rec.Code != 200 || !strings.Contains(rec.Body.String(), "20250102") {
+			t.Fatalf("daily proxy: %d %s", rec.Code, rec.Body.String())
+		}
+		syncFailure.Store(true)
+		defer syncFailure.Store(false)
+		rec = httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+		if rec.Code != 502 || strings.Contains(rec.Body.String(), "server-only-secret") {
+			t.Fatal("unsafe upstream error", rec.Code, rec.Body.String())
+		}
+	})
 	t.Run("frontend style nonce is unique and does not relax scripts", func(t *testing.T) {
 		previous := ""
 		for i := 0; i < 2; i++ {

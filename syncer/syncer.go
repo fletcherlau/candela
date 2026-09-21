@@ -91,6 +91,9 @@ func main() {
 		if err := rotationService.Refresh(context.Background()); err != nil {
 			log.Fatal("rotation refresh failed")
 		}
+		if err := rotationService.RefreshDaily(context.Background()); err != nil {
+			log.Fatal("daily rotation refresh failed")
+		}
 		fmt.Println("Four ETF synchronization and rotation refresh finished")
 		return
 	}
@@ -103,6 +106,9 @@ func main() {
 		}
 		if err := rotationService.Refresh(context.Background()); err != nil {
 			log.Print("rotation refresh remains pending")
+		}
+		if err := rotationService.RefreshDaily(context.Background()); err != nil {
+			log.Print("daily rotation refresh remains pending")
 		}
 		return
 	}
@@ -130,6 +136,7 @@ func main() {
 	handler.RegisterHandlers(server, svcCtx)
 	handler.RegisterCatalog(server, svcCtx, st)
 	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/backtest", Handler: svcCtx.ApiKeyAuth(rotationService.Handler().ServeHTTP)})
+	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/daily", Handler: svcCtx.ApiKeyAuth(rotationService.DailyHandler().ServeHTTP)})
 	runStore := syncrun.NewStore(db)
 	for _, route := range []rest.Route{
 		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs", Handler: svcCtx.ApiKeyAuth(runStore.Handler())},
