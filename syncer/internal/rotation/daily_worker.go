@@ -27,5 +27,35 @@ func (s *Service) RefreshDaily(ctx context.Context) error {
 	if !latest.Valid {
 		return nil
 	}
-	return s.PublishClose(ctx, latest.String)
+	// A source revision invalidates recorded close groups, including dates
+	// preceding the latest stored bar. Revisit those dates in the background;
+	// each publication retains the existing whole-group revision fence.
+	rows, err := s.DB.QueryContext(ctx, `SELECT d.trade_date FROM rotation_daily d
+ JOIN rotation_result r ON r.id=1
+ WHERE d.basis='close' AND d.trade_date<=? AND (d.revision<>r.revision OR d.status='failed')
+ UNION SELECT ? ORDER BY trade_date`, end, latest.String)
+	if err != nil {
+		return err
+	}
+	var dates []string
+	for rows.Next() {
+		var date string
+		if err = rows.Scan(&date); err != nil {
+			break
+		}
+		dates = append(dates, date)
+	}
+	if err == nil {
+		err = rows.Err()
+	}
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, date := range dates {
+		if err := s.PublishClose(ctx, date); err != nil {
+			return err
+		}
+	}
+	return nil
 }
