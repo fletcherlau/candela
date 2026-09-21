@@ -353,6 +353,25 @@ func TestETFHTTPRecoveryAndCancellationPreserveCompletedDailyStep(t *testing.T) 
 					}
 					time.Sleep(10 * time.Millisecond)
 				}
+
+				var audit struct {
+					Batch struct {
+						Events []struct {
+							Kind string `json:"kind"`
+							Code string `json:"code"`
+						} `json:"events"`
+					} `json:"batch"`
+				}
+				etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &audit)
+				seen := map[string]bool{}
+				for _, event := range audit.Batch.Events {
+					if event.Code == "510880.SH" {
+						seen[event.Kind] = true
+					}
+				}
+				if !seen["interrupted"] || !seen["resumed"] {
+					t.Fatalf("interruption and recovery not queryable: %+v", audit)
+				}
 				if mid.Batch.EndDate != "20250103" || mid.Batch.Items[0].ChunkDays != 31 {
 					t.Fatal("recovery changed frozen plan", mid)
 				}
@@ -363,5 +382,17 @@ func TestETFHTTPRecoveryAndCancellationPreserveCompletedDailyStep(t *testing.T) 
 				t.Fatal("recovery requested saved daily step", source.calls)
 			}
 		})
+	}
+}
+
+func TestETFHTTPPreservesCurrentDayScopeBeforeEveningReport(t *testing.T) {
+	db := testDB(t)
+	service := &ETFService{Store: NewETFStore(db), DefaultStart: "20250101", ChunkDays: 31, Now: func() time.Time { return time.Date(2025, 1, 3, 7, 30, 0, 0, time.UTC) }}
+	var result struct {
+		Batch ETFBatch `json:"batch"`
+	}
+	etfHTTP(t, "POST", etfAPI(t, service), `{"codes":["510880.SH"]}`, 202, &result)
+	if result.Batch.EndDate != "20250103" {
+		t.Fatalf("15:30 ETF request excluded the current close: %+v", result.Batch)
 	}
 }

@@ -58,17 +58,22 @@ type ETFItem struct {
 	Run
 	ETFProgress
 }
+type ETFEvent struct {
+	Event
+	Code string `json:"code"`
+}
 type ETFBatch struct {
-	ID        string    `json:"id"`
-	ParentID  string    `json:"parentId"`
-	EndDate   string    `json:"endDate"`
-	CreatedAt string    `json:"createdAt"`
-	State     string    `json:"state"`
-	Total     int       `json:"total"`
-	Success   int       `json:"success"`
-	Failed    int       `json:"failed"`
-	Cancelled int       `json:"cancelled"`
-	Items     []ETFItem `json:"items"`
+	Events    []ETFEvent `json:"events,omitempty"`
+	ID        string     `json:"id"`
+	ParentID  string     `json:"parentId"`
+	EndDate   string     `json:"endDate"`
+	CreatedAt string     `json:"createdAt"`
+	State     string     `json:"state"`
+	Total     int        `json:"total"`
+	Success   int        `json:"success"`
+	Failed    int        `json:"failed"`
+	Cancelled int        `json:"cancelled"`
+	Items     []ETFItem  `json:"items"`
 }
 
 const etfProgressColumns = "daily_start,adj_start,daily_checkpoint,adj_checkpoint,daily_rows,adj_rows,chunk_days,parent_run"
@@ -84,34 +89,18 @@ func readETFBatch(ctx context.Context, tx *sql.Tx, id string) (b ETFBatch, err e
 	}
 	b.ParentID = parent.String
 	b.Items = []ETFItem{}
-	rows, err := tx.QueryContext(ctx, "SELECT run_id FROM etf_sync_item WHERE batch_id=? ORDER BY ts_code", id)
+	// A single statement pairs each state with its committed checkpoints, even
+	// when called by READ COMMITTED acceptance/retry transactions.
+	rows, err := tx.QueryContext(ctx, "SELECT "+columns+","+etfProgressColumns+" FROM etf_sync_run r JOIN etf_sync_progress p ON p.run_id=r.id WHERE r.id IN (SELECT run_id FROM etf_sync_item WHERE batch_id=?) ORDER BY r.ts_code", id)
 	if err != nil {
 		return b, err
-	}
-	var ids []string
-	for rows.Next() {
-		var run string
-		if err = rows.Scan(&run); err != nil {
-			break
-		}
-		ids = append(ids, run)
-	}
-	scanErr := rows.Err()
-	rows.Close()
-	if err != nil {
-		return b, err
-	}
-	if scanErr != nil {
-		return b, scanErr
 	}
 	active, running := false, false
-	for _, id := range ids {
-		run, e := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM etf_sync_run WHERE id=?", id))
+	for rows.Next() {
+		var p ETFProgress
+		run, e := scan(rows, &p.DailyStart, &p.AdjStart, &p.DailyCheckpoint, &p.AdjCheckpoint, &p.DailyRows, &p.AdjRows, &p.ChunkDays, &p.ParentRun)
 		if e != nil {
-			return b, e
-		}
-		p, e := progress(tx.QueryRowContext(ctx, "SELECT "+etfProgressColumns+" FROM etf_sync_progress WHERE run_id=?", id))
-		if e != nil {
+			rows.Close()
 			return b, e
 		}
 		b.Items = append(b.Items, ETFItem{run, p})
@@ -128,7 +117,29 @@ func readETFBatch(ctx context.Context, tx *sql.Tx, id string) (b ETFBatch, err e
 			running = running || run.State != "queued"
 		}
 	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return b, err
+	}
 	b.setState(active, running)
+	rows, err = tx.QueryContext(ctx, `SELECT i.ts_code,e.kind,DATE_FORMAT(e.created_at,'%Y-%m-%dT%H:%i:%sZ'),e.checkpoint,e.message FROM etf_sync_event e JOIN etf_sync_item i ON i.run_id=e.run_id WHERE i.batch_id=? ORDER BY e.sequence DESC LIMIT 200`, id)
+	if err != nil {
+		return b, err
+	}
+	for rows.Next() {
+		var event ETFEvent
+		if err = rows.Scan(&event.Code, &event.Kind, &event.At, &event.Checkpoint, &event.Message); err != nil {
+			rows.Close()
+			return b, err
+		}
+		b.Events = append(b.Events, event)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return b, err
+	}
 	return b, nil
 }
 

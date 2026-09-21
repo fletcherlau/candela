@@ -14,6 +14,7 @@ import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
@@ -59,6 +60,13 @@ type Item = {
   parentRun: string;
 };
 type Batch = {
+  events?: {
+    code: string;
+    kind: string;
+    at: string;
+    checkpoint: string;
+    message: string;
+  }[];
   id: string;
   parentId: string;
   endDate: string;
@@ -87,6 +95,19 @@ function isBatch(value: unknown, detail = false): value is Batch {
     !["total", "success", "failed", "cancelled"].every(
       (k) => Number.isSafeInteger(b[k]) && Number(b[k]) >= 0,
     )
+  )
+    return false;
+  if (
+    b.events !== undefined &&
+    (!Array.isArray(b.events) ||
+      !b.events.every(
+        (event: Record<string, unknown>) =>
+          event &&
+          typeof event === "object" &&
+          ["code", "kind", "at", "checkpoint", "message"].every(
+            (k) => typeof event[k] === "string",
+          ),
+      ))
   )
     return false;
   return (
@@ -153,6 +174,7 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
   });
   const [detail, setDetail] = useState<Batch | null>(null);
   const [codes, setCodes] = useState("");
+  const [codesError, setCodesError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -248,7 +270,7 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
         input.length > 500 ||
         input.some((code) => !/^\d{6}\.(SH|SZ)$/.test(code)))
     ) {
-      setOperationError(
+      setCodesError(
         "请输入 1 至 500 个 ETF 代码，例如 510880.SH；多个代码用逗号或空格分隔。",
       );
       return;
@@ -331,20 +353,31 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
             }}
           >
             <FieldGroup>
-              <Field>
+              <Field data-invalid={!!codesError}>
                 <FieldLabel htmlFor="etf-sync-codes">指定 ETF 代码</FieldLabel>
                 <Input
                   id="etf-sync-codes"
                   value={codes}
-                  onChange={(event) => setCodes(event.target.value)}
+                  onChange={(event) => {
+                    setCodes(event.target.value);
+                    setCodesError("");
+                  }}
                   placeholder="510880.SH, 518880.SH"
                   autoComplete="off"
                   disabled={busy}
-                  aria-describedby="etf-code-help"
+                  aria-invalid={!!codesError}
+                  aria-describedby={
+                    codesError
+                      ? "etf-code-help etf-code-error"
+                      : "etf-code-help"
+                  }
                 />
                 <FieldDescription id="etf-code-help">
                   多个代码用逗号或空格分隔。指定代码仅用于本次同步，不修改启用名单。
                 </FieldDescription>
+                {codesError && (
+                  <FieldError id="etf-code-error">{codesError}</FieldError>
+                )}
               </Field>
               <Field>
                 <Button
@@ -358,8 +391,7 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
             </FieldGroup>
           </form>
           <p className="text-xs leading-6 text-muted-foreground">
-            对象与截止日由后端在提交时固定：北京时间 18:00
-            前取前一日，之后取当日。日线与因子分别续传，相同未结束批次自动合并。
+            对象与截止日由后端在提交时固定，截止日为提交当日（北京时间）。日线与因子分别续传，相同未结束批次自动合并。
           </p>
           {notice && (
             <p role="status" className="text-sm">
@@ -491,22 +523,42 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
                         </Badge>
                       </div>
                       <p className="text-xs">
-                        {stages[item.stage] || item.stage} · 已完成{" "}
-                        {item.completedSegments} / {item.totalSegments} 段
+                        {item.dailyStart > detail.endDate &&
+                        item.adjStart > detail.endDate ? (
+                          "已有数据覆盖截止日，无需取数"
+                        ) : (
+                          <>
+                            {stages[item.stage] || item.stage} · 已完成{" "}
+                            {item.completedSegments} / {item.totalSegments} 段
+                          </>
+                        )}
                       </p>
                       <dl className="flex flex-col gap-2 text-xs">
                         <div>
                           <dt>日线</dt>
                           <dd>
-                            起点 {date(item.dailyStart)} · 已处理至{" "}
-                            {date(item.dailyCheckpoint)} · {item.dailyRows} 条
+                            {item.dailyStart > detail.endDate ? (
+                              "已覆盖截止日，无需取数"
+                            ) : (
+                              <>
+                                起点 {date(item.dailyStart)} · 已处理至{" "}
+                                {date(item.dailyCheckpoint)} · {item.dailyRows}{" "}
+                                条
+                              </>
+                            )}
                           </dd>
                         </div>
                         <div>
                           <dt>复权因子</dt>
                           <dd>
-                            起点 {date(item.adjStart)} · 已处理至{" "}
-                            {date(item.adjCheckpoint)} · {item.adjRows} 条
+                            {item.adjStart > detail.endDate ? (
+                              "已覆盖截止日，无需取数"
+                            ) : (
+                              <>
+                                起点 {date(item.adjStart)} · 已处理至{" "}
+                                {date(item.adjCheckpoint)} · {item.adjRows} 条
+                              </>
+                            )}
                           </dd>
                         </div>
                       </dl>
@@ -524,6 +576,33 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
                     </article>
                   ))}
                 </div>
+                {!!detail.events?.length && (
+                  <details>
+                    <summary className="cursor-pointer text-sm">
+                      执行记录（最近 200 条）
+                    </summary>
+                    <ol
+                      className="mt-3 flex max-h-64 flex-col gap-3 overflow-y-auto"
+                      aria-label="ETF 执行记录"
+                    >
+                      {detail.events.map((event, index) => (
+                        <li key={index} className="text-xs">
+                          <p>
+                            {event.code} ·{" "}
+                            <time dateTime={event.at}>
+                              {new Date(event.at).toLocaleString("zh-CN", {
+                                timeZone: "Asia/Shanghai",
+                                hour12: false,
+                              })}{" "}
+                              · 北京时间
+                            </time>
+                          </p>
+                          <p>{event.message}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
               </section>
             )}
           </div>

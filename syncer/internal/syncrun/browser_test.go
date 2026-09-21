@@ -38,6 +38,9 @@ func TestSyncBrowserHarness(t *testing.T) {
 	routes := maintenanceRouter(t, st)
 	mux.Handle("/api/v1/data/sync-runs", routes)
 	mux.Handle("/api/v1/data/sync-runs/", routes)
+	mux.HandleFunc("/api/v1/data/etf-syncs", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"batches": []any{}})
+	})
 	mux.HandleFunc("/api/v1/rotation/reference-captures", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"runs":[]}`))

@@ -22,8 +22,9 @@ const columns = `id,ts_code,mode,start_date,end_date,effective_start,state,stage
 
 type scanner interface{ Scan(...any) error }
 
-func scan(row scanner) (r Run, err error) {
-	err = row.Scan(&r.ID, &r.Code, &r.Mode, &r.StartDate, &r.EndDate, &r.EffectiveStart, &r.State, &r.Stage, &r.ProcessedRows, &r.CompletedSegments, &r.TotalSegments, &r.Checkpoint, &r.HistoryEvidence, &r.ErrorCode, &r.Message, &r.CreatedAt, &r.UpdatedAt, &r.Owner)
+func scan(row scanner, extra ...any) (r Run, err error) {
+	fields := []any{&r.ID, &r.Code, &r.Mode, &r.StartDate, &r.EndDate, &r.EffectiveStart, &r.State, &r.Stage, &r.ProcessedRows, &r.CompletedSegments, &r.TotalSegments, &r.Checkpoint, &r.HistoryEvidence, &r.ErrorCode, &r.Message, &r.CreatedAt, &r.UpdatedAt, &r.Owner}
+	err = row.Scan(append(fields, extra...)...)
 	return
 }
 
@@ -369,6 +370,12 @@ func (s *Store) completeCancellation(ctx context.Context, r Run) error {
 
 // Events share the state transition transaction and capture its checkpoint.
 func (s *Store) recordEvent(ctx context.Context, tx *sql.Tx, id, kind, message string) error {
+	if s.runs == "etf_sync_run" {
+		_, err := tx.ExecContext(ctx, `INSERT INTO etf_sync_event(run_id,kind,checkpoint,message,created_at)
+ SELECT r.id,?,r.checkpoint,CONCAT(?,' 日线检查点：',IF(p.daily_checkpoint='','尚未完成',p.daily_checkpoint),'；因子检查点：',IF(p.adj_checkpoint='','尚未完成',p.adj_checkpoint),'。'),UTC_TIMESTAMP(6)
+ FROM etf_sync_run r JOIN etf_sync_progress p ON p.run_id=r.id WHERE r.id=?`, kind, message, id)
+		return err
+	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO `+s.events+`(run_id,kind,checkpoint,message,created_at) SELECT id,?,checkpoint,?,UTC_TIMESTAMP(6) FROM `+s.runs+` WHERE id=?`, kind, message, id)
 	return err
 }

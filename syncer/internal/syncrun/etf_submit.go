@@ -23,7 +23,9 @@ func (s *ETFService) submit(ctx context.Context, codes []string, parent string) 
 		return ETFBatch{}, false, err
 	}
 	defer tx.Rollback()
-	end := Cutoff(s.now())
+	// ETF callers historically request through today, including a close report
+	// invoked after market close but before the external 18:00 cron.
+	end := s.now().In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("20060102")
 	parents := map[string]ETFItem{}
 	if parent != "" {
 		var locked string
