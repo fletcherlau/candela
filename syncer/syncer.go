@@ -84,7 +84,7 @@ func main() {
 	// 盘中信号：gtimg 实时行情 + 库内日线，分位窗口与 today 用默认值。
 	signalComputer := core.NewSignalComputer(newGtimgSource(""), st, 0, nil)
 
-	rotationService := &rotation.Service{DB: db, Calendar: &rotationCalendar{client: tushareClient}, Realtime: newGtimgSource("")}
+	rotationService := &rotation.Service{ETFSync: syncer, DB: db, Calendar: &rotationCalendar{client: tushareClient}, Realtime: newGtimgSource("")}
 	if *rotationRefresh {
 		sum := syncer.Run(context.Background(), core.RotationCodes)
 		if sum.Success != sum.Total {

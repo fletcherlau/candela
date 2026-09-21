@@ -12,11 +12,13 @@ import (
 	"syncer/internal/syncrun"
 )
 
+const closeRecoveryPath = "/api/v1/rotation/close-syncs"
+
 const recoveryPath = "/api/v1/rotation/recoveries"
 
 func (s *Service) RecoveryRoutes(auth func(http.HandlerFunc) http.HandlerFunc) []rest.Route {
 	h := auth(s.recoveryHandler)
-	return []rest.Route{{Method: "GET", Path: recoveryPath, Handler: h}, {Method: "GET", Path: recoveryPath + "/:id", Handler: h}, {Method: "POST", Path: recoveryPath + "/:id/retry", Handler: h}, {Method: "POST", Path: capturePath + "/:date/retry", Handler: h}}
+	return []rest.Route{{Method: "GET", Path: recoveryPath, Handler: h}, {Method: "GET", Path: recoveryPath + "/:id", Handler: h}, {Method: "POST", Path: recoveryPath + "/:id/retry", Handler: h}, {Method: "POST", Path: capturePath + "/:date/retry", Handler: h}, {Method: "POST", Path: closeRecoveryPath + "/:id/retry", Handler: h}}
 }
 func (s *Service) recoveryHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -69,11 +71,18 @@ func (s *Service) recoveryHandler(w http.ResponseWriter, r *http.Request) {
 		send(400, map[string]string{"error": "恢复只接受原任务标识，不允许改写日期或时点。"})
 		return
 	}
-	origin, parent := "", ""
+	origin, parent, basis := "", "", "reference_1445"
 	if strings.HasPrefix(r.URL.Path, capturePath+"/") && strings.HasSuffix(r.URL.Path, "/retry") {
 		origin = strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, capturePath+"/"), "/retry")
 		if _, err := captureTarget(origin); err != nil || origin > s.today() {
 			send(400, map[string]string{"error": "原交易日无效。"})
+			return
+		}
+	} else if strings.HasPrefix(r.URL.Path, closeRecoveryPath+"/") && strings.HasSuffix(r.URL.Path, "/retry") {
+		origin = strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, closeRecoveryPath+"/"), "/retry")
+		basis = "close"
+		if !syncrun.ValidID(origin) {
+			send(404, map[string]string{"error": "原任务不存在。"})
 			return
 		}
 	} else if strings.HasPrefix(r.URL.Path, recoveryPath+"/") && strings.HasSuffix(r.URL.Path, "/retry") {
@@ -86,7 +95,21 @@ func (s *Service) recoveryHandler(w http.ResponseWriter, r *http.Request) {
 		send(404, map[string]string{"error": "任务不存在。"})
 		return
 	}
-	run, duplicate, err := s.acceptReferenceRecovery(r.Context(), origin, parent)
+	if parent != "" {
+		previous, err := s.recoveryRun(r.Context(), parent)
+		if err != nil {
+			fail(err)
+			return
+		}
+		origin, basis = previous.OriginID, previous.Basis
+	}
+	var run RecoveryRun
+	var duplicate bool
+	if basis == "close" {
+		run, duplicate, err = s.acceptCloseRecovery(r.Context(), origin, parent)
+	} else {
+		run, duplicate, err = s.acceptReferenceRecovery(r.Context(), origin, parent)
+	}
 	if err != nil {
 		fail(err)
 		return

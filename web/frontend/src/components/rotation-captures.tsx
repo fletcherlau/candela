@@ -1,3 +1,4 @@
+import { RotationRecovery } from "@/components/rotation-recovery";
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { ResearchTheme } from "@/components/research-theme";
@@ -342,6 +343,24 @@ export function RotationCaptures() {
                     。目标时点不是全部标的的成交时间；来源时间与实际采集时间分别列出。
                   </p>
                 </div>
+                <RotationRecovery
+                  key={detail.tradeDate}
+                  basis="reference_1445"
+                  origin={detail.tradeDate}
+                  tradeDate={detail.tradeDate}
+                  eligible={
+                    detail.state === "captured" &&
+                    detail.available === 4 &&
+                    detail.stage !== "reference_published"
+                  }
+                  reason={
+                    detail.stage === "reference_published"
+                      ? "固定参考已发布，无需恢复。"
+                      : detail.state === "running" || detail.state === "queued"
+                        ? "原始采集仍在执行，请等待结果。"
+                        : "原时点数据无法补取；已保存输入保留，不使用当前价格补造。"
+                  }
+                />
                 <div className="grid min-w-0 gap-4 md:grid-cols-2">
                   {detail.items?.map((item) => (
                     <Card

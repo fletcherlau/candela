@@ -1,3 +1,4 @@
+import { RotationRecovery } from "@/components/rotation-recovery";
 import { ResearchTheme } from "@/components/research-theme";
 import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -497,6 +498,26 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
                     </Button>
                   )}
                 </div>
+                {detail.items?.some((item) =>
+                  ["510880.SH", "518880.SH", "159915.SZ", "513100.SH"].includes(
+                    item.code,
+                  ),
+                ) && (
+                  <RotationRecovery
+                    key={detail.id}
+                    basis="close"
+                    origin={detail.id}
+                    tradeDate={detail.endDate}
+                    eligible={["failed", "partial", "succeeded"].includes(
+                      detail.state,
+                    )}
+                    reason={
+                      detail.state === "cancelled"
+                        ? "原批次已取消，不参与失败恢复。"
+                        : "原批次仍在执行，请等待同步结果。"
+                    }
+                  />
+                )}
                 <div
                   className="grid max-h-[36rem] min-w-0 gap-3 overflow-y-auto md:grid-cols-2"
                   aria-label="ETF 对象结果"

@@ -125,7 +125,10 @@ function Slippage({ value }: { value: DailyView["priceSlippage"][number] }) {
   );
 }
 export function RotationDaily() {
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const date = new URLSearchParams(location.search).get("tradeDate") || "";
+    return /^\d{8}$/.test(date) ? date : "";
+  });
   const [view, setView] = useState<DailyView | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -239,6 +242,10 @@ export function RotationDaily() {
           setView(null);
           setError("");
           setBusy(true);
+          const url = new URL(location.href);
+          if (date) url.searchParams.set("tradeDate", date);
+          else url.searchParams.delete("tradeDate");
+          history.replaceState(null, "", url);
           setSelectedDate(date);
         }}
       />

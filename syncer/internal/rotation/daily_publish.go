@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"syncer/internal/core"
 	"time"
@@ -11,7 +12,10 @@ import (
 
 // PublishClose uses the existing source revision and publication lock. The
 // locking revision read at commit prevents a superseded snapshot being exposed.
-func (s *Service) PublishClose(ctx context.Context, date string) (publishErr error) {
+func (s *Service) PublishClose(ctx context.Context, date string) error {
+	return s.publishCloseRecovery(ctx, date, nil)
+}
+func (s *Service) publishCloseRecovery(ctx context.Context, date string, recovery *RecoveryRun) (publishErr error) {
 	if _, err := time.Parse("20060102", date); err != nil || date > s.today() {
 		return fmt.Errorf("交易日无效")
 	}
@@ -34,19 +38,27 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	if err != nil {
 		return err
 	}
-	if syncState == "syncing" || block != "" {
+	if syncState == "syncing" && block == "" {
 		return nil
 	}
 	defer func() {
-		if publishErr == nil {
+		if publishErr == nil || errors.Is(publishErr, errRecoveryOwnership) {
 			return
 		}
 		// Roll back the input snapshot before recording failure. Guard this write
 		// too: a failed superseded calculation must not replace newer state.
 		_ = tx.Rollback()
-		_, _ = conn.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,message)
+		failureTx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			return
+		}
+		defer failureTx.Rollback()
+		_, err = failureTx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,message)
  SELECT ?,'close',revision,'failed','收盘计算失败，等待后台重试；已发布完整结果保留' FROM rotation_result WHERE id=1 AND revision=?
  ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),message=VALUES(message),updated_at=CURRENT_TIMESTAMP(6)`, date, revision)
+		if err == nil {
+			_ = commitRecoveryPublication(ctx, failureTx, recovery)
+		}
 	}()
 	var previous int64
 	var previousStatus string
@@ -87,7 +99,13 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	}
 	var payload []byte
 	var published any
-	if available == len(core.RotationCodes) {
+	if block != "" {
+		message += "；同步尚未完整结束，整组结果暂不发布"
+		if block == "failed" {
+			status = "failed"
+		}
+	}
+	if available == len(core.RotationCodes) && block == "" {
 		result := s.dailyResult(date, panels, prices, reasons, CaptureParams{Version: indicatorVersion, QuantileWindow: s.quantileWindow()})
 		payload, err = json.Marshal(result)
 		if err != nil {
@@ -109,7 +127,7 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	return commitRecoveryPublication(ctx, tx, recovery)
 }
 
 func (s *Service) dailyResult(date string, panels map[string][]core.DailyBarAdj, prices map[string]float64, reasons map[string]string, params CaptureParams) DailyResult {

@@ -160,3 +160,81 @@ func TestRecoveryHTTPFailedAttemptCanRetryWithParentAndFrozenTarget(t *testing.T
 		t.Fatal("failure history lost")
 	}
 }
+
+// The database barrier pauses a publication after it has read frozen inputs.
+// A newer owner then finishes the attempt; the delayed old owner must neither
+// publish its candidate nor change the observable newer terminal status.
+func TestRecoveryHTTPLostOwnerCannotPublishFrozenReference(t *testing.T) {
+	db, service, source := seedReferenceScenario(t, "20250103")
+	api := recoveryAPI(t, service)
+	captureHTTP(t, "POST", api+capturePath, `{"tradeDate":"20250103"}`, 202, nil)
+	startCaptureWorker(t, service)
+	waitCapture(t, api+capturePath, "20250103", "captured")
+	gate, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gate.Close()
+	if _, err = gate.ExecContext(context.Background(), "SELECT GET_LOCK('recovery_fixture_gate',5)"); err != nil {
+		t.Fatal(err)
+	}
+	defer gate.ExecContext(context.Background(), "SELECT RELEASE_LOCK('recovery_fixture_gate')")
+	if _, err = db.Exec(`CREATE TRIGGER recovery_fixture_barrier BEFORE INSERT ON rotation_daily FOR EACH ROW BEGIN DO GET_LOCK('recovery_fixture_entered',0); DO GET_LOCK('recovery_fixture_gate',10); DO RELEASE_LOCK('recovery_fixture_gate'); DO RELEASE_LOCK('recovery_fixture_entered'); END`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Exec("DROP TRIGGER IF EXISTS recovery_fixture_barrier") })
+	var accepted struct {
+		Run RecoveryRun `json:"run"`
+	}
+	captureHTTP(t, "POST", api+capturePath+"/20250103/retry", "", 202, &accepted)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); service.ServeRecoveries(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	until := time.Now().Add(4 * time.Second)
+	for {
+		var entered bool
+		if err = db.QueryRow("SELECT IS_USED_LOCK('recovery_fixture_entered') IS NOT NULL").Scan(&entered); err != nil {
+			t.Fatal(err)
+		}
+		if entered {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatal("publication never reached fixture barrier")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Simulate the persisted outcome of a replacement executor after lease loss.
+	if _, err = db.Exec("UPDATE rotation_recovery_run SET owner=owner+1,state='failed',stage='calculation_failed',message='replacement executor failed',lease_until=NULL WHERE id=?", accepted.Run.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = gate.ExecContext(context.Background(), "SELECT RELEASE_LOCK('recovery_fixture_gate')"); err != nil {
+		t.Fatal(err)
+	}
+	// Wait for the publication transaction to release its capture row lock.
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var date string
+	err = tx.QueryRow("SELECT trade_date FROM rotation_capture_run WHERE trade_date='20250103' FOR UPDATE").Scan(&date)
+	tx.Rollback()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	<-done
+	current := waitRecovery(t, api, accepted.Run.ID, "failed")
+	if current.Message != "replacement executor failed" {
+		t.Fatal("old executor replaced newer status", current)
+	}
+	var view DailyView
+	captureHTTP(t, "GET", api+"/api/v1/rotation/daily?tradeDate=20250103", "", 200, &view)
+	if view.Reference != nil {
+		t.Fatal("lost executor published a reference", view.Reference)
+	}
+	if source.count() != 4 {
+		t.Fatal("recovery requested new quotes")
+	}
+}
