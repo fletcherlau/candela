@@ -74,11 +74,17 @@ func (s *Service) publishReference(ctx context.Context, date string) error {
 		return nil
 	}
 	var exists int
-	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM rotation_daily WHERE trade_date=? AND basis='reference_1445'", date).Scan(&exists); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM rotation_daily WHERE trade_date=? AND basis='reference_1445' AND payload IS NOT NULL", date).Scan(&exists); err != nil {
 		return err
 	}
 	if exists > 0 {
 		return nil
+	}
+	// Failed calculations have no published payload. The capture row lock
+	// serializes recovery with the publisher; a first published reference is
+	// immutable and was checked above. Replacing a failure never changes input.
+	if _, err = tx.ExecContext(ctx, "DELETE FROM rotation_daily WHERE trade_date=? AND basis='reference_1445' AND payload IS NULL", date); err != nil {
+		return err
 	}
 	run, err := readCaptureRun(ctx, tx, date)
 	if err != nil {
