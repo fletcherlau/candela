@@ -64,7 +64,18 @@ func (s *Service) recoveryHandler(w http.ResponseWriter, r *http.Request) {
 				fail(err)
 				return
 			}
-			send(200, map[string]any{"runs": runs})
+			response := map[string]any{"runs": runs}
+			if basis == "close" {
+				scope, err := s.historicalRecoveryScope(r.Context(), origin)
+				if err != nil {
+					fail(err)
+					return
+				}
+				if scope != nil {
+					response["scope"] = scope
+				}
+			}
+			send(200, response)
 			return
 		}
 		id := strings.TrimPrefix(r.URL.Path, recoveryPath+"/")

@@ -16,10 +16,7 @@ func (s *Service) RefreshDaily(ctx context.Context) error {
 	if err := s.ensureCalendar(ctx, today, today); err != nil {
 		return err
 	}
-	if now.Hour() < 15 {
-		now = now.AddDate(0, 0, -1)
-	}
-	end := now.Format("20060102")
+	end := s.closeHorizon()
 	var latest sql.NullString
 	if err := s.DB.QueryRowContext(ctx, `SELECT MAX(trade_date) FROM etf_daily WHERE ts_code IN ('510880.SH','518880.SH','159915.SZ','513100.SH') AND trade_date<=?`, end).Scan(&latest); err != nil {
 		return err
@@ -60,4 +57,12 @@ func (s *Service) RefreshDaily(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (s *Service) closeHorizon() string {
+	now := s.now().In(time.FixedZone("Asia/Shanghai", 8*3600))
+	if now.Hour() < 15 {
+		now = now.AddDate(0, 0, -1)
+	}
+	return now.Format("20060102")
 }

@@ -133,6 +133,10 @@ func (s *Service) Serve(ctx context.Context) {
 	}
 }
 func (s *Service) Refresh(ctx context.Context) error {
+	return s.refreshRecovery(ctx, nil)
+}
+
+func (s *Service) refreshRecovery(ctx context.Context, recovery *RecoveryRun) error {
 	conn, err := s.lock(ctx, 0)
 	if err != nil {
 		return err
@@ -152,24 +156,24 @@ func (s *Service) Refresh(ctx context.Context) error {
 		if block == "failed" {
 			message = "ETF 同步未完成，等待恢复；已发布结果保留"
 		}
-		_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status=?,message=? WHERE id=1 AND revision=?", block, message, rev)
+		err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status=?,message=? WHERE id=1 AND revision=?", block, message, rev)
 		return err
 	}
 	if status == "syncing" { // The named lock was released by an interrupted synchronizer.
-		_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status='failed',message='上次行情同步中断，等待重新同步；旧结果保留' WHERE id=1")
+		err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='failed',message='上次行情同步中断，等待重新同步；旧结果保留' WHERE id=1")
 		return err
 	}
-	if status != "pending" && status != "computing" {
+	if status != "pending" && status != "computing" && !(recovery != nil && status == "failed") {
 		return nil
 	}
-	_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status='computing',message='正在计算完整历史，保留上一套结果' WHERE id=1 AND revision=?", rev)
+	err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='computing',message='正在计算完整历史，保留上一套结果' WHERE id=1 AND revision=?", rev)
 	if err != nil {
 		return err
 	}
 	result, warning, err := s.calculate(ctx)
 	if err != nil {
 		// Errors produced by calculate describe data gaps, never upstream credentials.
-		_, e := conn.ExecContext(ctx, "UPDATE rotation_result SET status='failed',message=? WHERE id=1 AND revision=?", truncate(err.Error()), rev)
+		e := updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='failed',message=? WHERE id=1 AND revision=?", truncate(err.Error()), rev)
 		return e
 	}
 	payload, err := json.Marshal(result)
@@ -180,9 +184,29 @@ func (s *Service) Refresh(ctx context.Context) error {
 	if warning != "" {
 		state = "stale"
 	}
-	_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET payload=?,status=?,message=?,updated_at=CURRENT_TIMESTAMP(6) WHERE id=1 AND revision=?", payload, state, warning, rev)
+	err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET payload=?,status=?,message=?,updated_at=CURRENT_TIMESTAMP(6) WHERE id=1 AND revision=?", payload, state, warning, rev)
 	return err
 }
+
+// Recovery uses the existing calculation and publication path, adding the same
+// execution-right fence already applied to daily groups. It does not create a
+// second backtest queue or permit a displaced recovery to publish or fail it.
+func updateBacktestPublication(ctx context.Context, conn *sql.Conn, recovery *RecoveryRun, query string, args ...any) error {
+	if recovery == nil {
+		_, err := conn.ExecContext(ctx, query, args...)
+		return err
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
+		return err
+	}
+	return commitRecoveryPublication(ctx, tx, recovery)
+}
+
 func truncate(s string) string {
 	r := []rune(s)
 	if len(r) > 280 {

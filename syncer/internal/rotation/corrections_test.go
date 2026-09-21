@@ -3,6 +3,7 @@ package rotation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"syncer/internal/core"
 	"syncer/internal/store"
@@ -14,9 +15,11 @@ import (
 // Only the external source is controlled. Requests, durable jobs, raw writes,
 // calculation, publication and public reads use the real production boundaries.
 type correctionSource struct {
-	mu      sync.RWMutex
-	bars    map[string][]core.Bar
-	factors map[string][]core.AdjFactor
+	failFactors bool
+	holdFactors <-chan struct{}
+	mu          sync.RWMutex
+	bars        map[string][]core.Bar
+	factors     map[string][]core.AdjFactor
 }
 
 func (f *correctionSource) FetchDaily(_ context.Context, code, from, to string) ([]core.Bar, error) {
@@ -30,13 +33,25 @@ func (f *correctionSource) FetchDaily(_ context.Context, code, from, to string) 
 	}
 	return result, nil
 }
-func (f *correctionSource) FetchAdj(_ context.Context, code, from, to string) ([]core.AdjFactor, error) {
+func (f *correctionSource) FetchAdj(ctx context.Context, code, from, to string) ([]core.AdjFactor, error) {
 	f.mu.RLock()
-	defer f.mu.RUnlock()
+	if f.failFactors {
+		f.mu.RUnlock()
+		return nil, fmt.Errorf("isolated factor source unavailable")
+	}
 	var result []core.AdjFactor
 	for _, factor := range f.factors[code] {
 		if factor.TradeDate >= from && factor.TradeDate <= to {
 			result = append(result, factor)
+		}
+	}
+	hold := f.holdFactors
+	f.mu.RUnlock()
+	if hold != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-hold:
 		}
 	}
 	return result, nil

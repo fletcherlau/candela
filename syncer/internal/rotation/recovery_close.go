@@ -74,22 +74,32 @@ func (s *Service) acceptCloseRecovery(ctx context.Context, origin, parent string
 	if target.After(s.now()) {
 		return RecoveryRun{}, false, &captureRequestError{409, "原交易日尚未收盘。"}
 	}
-	if err = s.ensureCalendar(ctx, batch.EndDate, batch.EndDate); err != nil {
-		return RecoveryRun{}, false, err
-	}
-	var open bool
-	if err = tx.QueryRowContext(ctx, "SELECT is_open FROM rotation_calendar WHERE cal_date=?", batch.EndDate).Scan(&open); err != nil {
-		return RecoveryRun{}, false, err
-	}
-	if !open {
-		return RecoveryRun{}, false, &captureRequestError{400, "原同步截止日不是交易日，不能发布收盘结果。"}
-	}
-	var published int
-	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM rotation_daily d JOIN rotation_result r ON r.id=1 AND r.revision=d.revision WHERE d.trade_date=? AND d.basis='close' AND d.status='ready' AND d.payload IS NOT NULL`, batch.EndDate).Scan(&published); err != nil {
-		return RecoveryRun{}, false, err
-	}
-	if published > 0 {
-		return RecoveryRun{}, false, &captureRequestError{409, "收盘结果已发布，无需恢复。"}
+	if batch.Mode == "historical" {
+		published, err := s.historicalRecoveryPublished(ctx, tx, batch.StartDate)
+		if err != nil {
+			return RecoveryRun{}, false, err
+		}
+		if published {
+			return RecoveryRun{}, false, &captureRequestError{409, "受影响的收盘与回测结果已发布，无需恢复。"}
+		}
+	} else {
+		if err = s.ensureCalendar(ctx, batch.EndDate, batch.EndDate); err != nil {
+			return RecoveryRun{}, false, err
+		}
+		var open bool
+		if err = tx.QueryRowContext(ctx, "SELECT is_open FROM rotation_calendar WHERE cal_date=?", batch.EndDate).Scan(&open); err != nil {
+			return RecoveryRun{}, false, err
+		}
+		if !open {
+			return RecoveryRun{}, false, &captureRequestError{400, "原同步截止日不是交易日，不能发布收盘结果。"}
+		}
+		var published int
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM rotation_daily d JOIN rotation_result r ON r.id=1 AND r.revision=d.revision WHERE d.trade_date=? AND d.basis='close' AND d.status='ready' AND d.payload IS NOT NULL`, batch.EndDate).Scan(&published); err != nil {
+			return RecoveryRun{}, false, err
+		}
+		if published > 0 {
+			return RecoveryRun{}, false, &captureRequestError{409, "收盘结果已发布，无需恢复。"}
+		}
 	}
 	raw := make([]byte, 16)
 	if _, err = rand.Read(raw); err != nil {
@@ -173,5 +183,90 @@ func (s *Service) recoverClose(ctx context.Context, run RecoveryRun) error {
 	if err := s.recoveryUpdate(ctx, run, "running", "computing", "原范围同步完成，正在重算四标的收盘结果"); err != nil {
 		return err
 	}
+	origin, err := s.ETFSync.Get(ctx, run.OriginID)
+	if err != nil {
+		return err
+	}
+	if origin.Mode == "historical" {
+		if err := s.recoveryUpdate(ctx, run, "running", "computing", "原历史范围同步完成，正在重算受影响留存日与连续回测"); err != nil {
+			return err
+		}
+		rows, err := s.DB.QueryContext(ctx, "SELECT trade_date FROM "+archivedDates+" WHERE trade_date>=? AND trade_date<=? ORDER BY trade_date", origin.StartDate, s.closeHorizon())
+		if err != nil {
+			return err
+		}
+		var dates []string
+		for rows.Next() {
+			var date string
+			if err = rows.Scan(&date); err != nil {
+				break
+			}
+			dates = append(dates, date)
+		}
+		if err == nil {
+			err = rows.Err()
+		}
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		for _, date := range dates {
+			if err := s.publishCloseRecovery(ctx, date, &run); err != nil {
+				return err
+			}
+		}
+		return s.refreshRecovery(ctx, &run)
+	}
 	return s.publishCloseRecovery(ctx, run.TradeDate, &run)
+}
+
+// Historical corrections can affect every later recorded date and the entire
+// continuous backtest. The original raw range stays frozen, including a closed
+// calendar endpoint; that endpoint is never invented as a trading day.
+func (s *Service) historicalRecoveryPublished(ctx context.Context, q rotationRowReader, start string) (bool, error) {
+	var published bool
+	err := q.QueryRowContext(ctx, `SELECT r.status IN ('ready','stale') AND r.payload IS NOT NULL AND NOT EXISTS (
+ SELECT 1 FROM `+archivedDates+`
+ LEFT JOIN rotation_daily d ON d.trade_date=archived.trade_date AND d.basis='close'
+ WHERE archived.trade_date>=? AND archived.trade_date<=?
+ AND (d.trade_date IS NULL OR d.revision<>r.revision OR d.status<>'ready' OR d.payload IS NULL)
+ ) FROM rotation_result r WHERE r.id=1`, start, s.closeHorizon()).Scan(&published)
+	return published, err
+}
+
+type HistoricalRecoveryScope struct {
+	Mode      string `json:"mode"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Published bool   `json:"published"`
+	ViewDate  string `json:"viewDate"`
+}
+
+// Read the current publication state, not a past recovery attempt's success.
+// A later raw revision can invalidate the same original historical scope.
+func (s *Service) historicalRecoveryScope(ctx context.Context, origin string) (*HistoricalRecoveryScope, error) {
+	if s.ETFSync == nil {
+		return nil, nil
+	}
+	batch, err := s.ETFSync.Get(ctx, origin)
+	if err != nil {
+		return nil, err
+	}
+	if batch.Mode != "historical" {
+		return nil, nil
+	}
+	tx, err := s.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	published, err := s.historicalRecoveryPublished(ctx, tx, batch.StartDate)
+	if err != nil {
+		return nil, err
+	}
+	var date sql.NullString
+	if err := tx.QueryRowContext(ctx, "SELECT MIN(trade_date) FROM "+archivedDates+" WHERE trade_date>=? AND trade_date<=?", batch.StartDate, s.closeHorizon()).Scan(&date); err != nil {
+		return nil, err
+	}
+	return &HistoricalRecoveryScope{Mode: batch.Mode, StartDate: batch.StartDate, EndDate: batch.EndDate, Published: published, ViewDate: date.String}, tx.Commit()
 }

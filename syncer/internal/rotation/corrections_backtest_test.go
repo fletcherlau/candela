@@ -307,3 +307,172 @@ func TestCorrectionHTTPShowsComputationAndRejectsSupersededClose(t *testing.T) {
 		t.Fatal("race changed immutable reference")
 	}
 }
+
+func TestCorrectionHTTPHistoricalRecoveryPublishesDependentsAndBacktestWithWeekendEnd(t *testing.T) {
+	f := seedContinuousCorrection(t)
+	var before RangeView
+	captureHTTP(t, "GET", f.rangeURL, "", 200, &before)
+	code := core.RotationCodes[3]
+	f.source.mu.Lock()
+	for i := range f.source.factors[code] {
+		if f.source.factors[code][i].TradeDate == "20250103" {
+			f.source.factors[code][i].AdjFactor = 2
+		}
+	}
+	f.source.mu.Unlock()
+	body, _ := json.Marshal(map[string]any{"codes": []string{code}, "mode": "historical", "startDate": "20250102", "endDate": "20250105"})
+	var batch struct {
+		Batch syncrun.ETFBatch `json:"batch"`
+	}
+	captureHTTP(t, "POST", f.etfURL, string(body), 202, &batch)
+	waitETFBatch(t, f.etfURL, batch.Batch.ID, "succeeded")
+	var scopeBefore struct {
+		Scope struct {
+			Mode      string `json:"mode"`
+			StartDate string `json:"startDate"`
+			EndDate   string `json:"endDate"`
+			Published bool   `json:"published"`
+			ViewDate  string `json:"viewDate"`
+		} `json:"scope"`
+	}
+	captureHTTP(t, "GET", f.dailyURL+recoveryPath+"/origins/close/"+batch.Batch.ID, "", 200, &scopeBefore)
+	if scopeBefore.Scope.Mode != "historical" || scopeBefore.Scope.StartDate != "20250102" || scopeBefore.Scope.EndDate != "20250105" || scopeBefore.Scope.Published {
+		t.Fatal("historical recovery scope/status not exposed", scopeBefore)
+	}
+	var accepted, duplicate struct {
+		Run          RecoveryRun `json:"run"`
+		Deduplicated bool        `json:"deduplicated"`
+	}
+	captureHTTP(t, "POST", f.dailyURL+closeRecoveryPath+"/"+batch.Batch.ID+"/retry", "", 202, &accepted)
+	captureHTTP(t, "POST", f.dailyURL+closeRecoveryPath+"/"+batch.Batch.ID+"/retry", "", 200, &duplicate)
+	if !duplicate.Deduplicated || duplicate.Run.ID != accepted.Run.ID || accepted.Run.TradeDate != "20250105" {
+		t.Fatal("original range identity changed or duplicate recovery created")
+	}
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); f.service.ServeRecoveries(ctx) }()
+	t.Cleanup(func() { stop(); <-done })
+	finished := waitRecovery(t, f.dailyURL, accepted.Run.ID, "succeeded")
+	if finished.SyncBatchID != batch.Batch.ID {
+		t.Fatal("successful raw synchronization was needlessly restarted")
+	}
+	for _, date := range []string{"20250106", "20250107", "20250108", "20250110"} {
+		view := dailyFromHTTP(t, f.dailyURL, date)
+		if view.CloseState.Status != "ready" || view.Close == nil || view.Close.Cards[3].Volatility == nil || *view.Close.Cards[3].Volatility <= 0 {
+			t.Fatalf("dependent recorded date %s not published by recovery: %+v", date, view)
+		}
+	}
+	var after RangeView
+	captureHTTP(t, "GET", f.rangeURL, "", 200, &after)
+	if after.Status != "ready" || after.Result.End != "20250110" || after.Range.Start != "20250106" || after.Range.End != "20250110" || after.Range.Gain == nil || *after.Result.Days[len(after.Result.Days)-1].NAV >= *before.Result.Days[len(before.Result.Days)-1].NAV {
+		t.Fatalf("recovery reported success without corrected continuous backtest: %+v", after)
+	}
+	preserved, _ := json.Marshal(dailyFromHTTP(t, f.dailyURL, "20250107").Reference)
+	if string(preserved) != string(f.frozenReference) || f.realtime.count() != 4 {
+		t.Fatal("recovery changed reference or requested new quotes")
+	}
+	captureHTTP(t, "GET", f.dailyURL+recoveryPath+"/origins/close/"+batch.Batch.ID, "", 200, &scopeBefore)
+	if !scopeBefore.Scope.Published || scopeBefore.Scope.ViewDate != "20250106" {
+		t.Fatal("management scope did not reflect all published results or linked to a weekend", scopeBefore)
+	}
+	if weekend := dailyFromHTTP(t, f.dailyURL, "20250105"); weekend.Close != nil {
+		t.Fatal("weekend endpoint was invented as a trading day")
+	}
+}
+
+func TestCorrectionHTTPHistoricalRecoveryCannotPublishAfterOwnershipChanges(t *testing.T) {
+	f := seedContinuousCorrection(t)
+	var before RangeView
+	captureHTTP(t, "GET", f.rangeURL, "", 200, &before)
+	old, _ := json.Marshal(before.Result)
+	code := core.RotationCodes[3]
+	f.source.mu.Lock()
+	for i := range f.source.factors[code] {
+		if f.source.factors[code][i].TradeDate == "20250107" {
+			f.source.factors[code][i].AdjFactor = 2
+		}
+	}
+	f.source.mu.Unlock()
+	body, _ := json.Marshal(map[string]any{"codes": []string{code}, "mode": "historical", "startDate": "20250107", "endDate": "20250107"})
+	var batch struct {
+		Batch syncrun.ETFBatch `json:"batch"`
+	}
+	captureHTTP(t, "POST", f.etfURL, string(body), 202, &batch)
+	waitETFBatch(t, f.etfURL, batch.Batch.ID, "succeeded")
+	// Remove only an ancient calendar entry: daily windows remain available,
+	// while the continuous backtest must wait at the external calendar seam.
+	if _, err := f.service.DB.Exec("DELETE FROM rotation_calendar WHERE cal_date='20190102'"); err != nil {
+		t.Fatal(err)
+	}
+	calendar := &waitingCalendar{entered: make(chan struct{}), resume: make(chan struct{})}
+	f.service.Calendar = calendar
+	var accepted struct {
+		Run RecoveryRun `json:"run"`
+	}
+	captureHTTP(t, "POST", f.dailyURL+closeRecoveryPath+"/"+batch.Batch.ID+"/retry", "", 202, &accepted)
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); f.service.ServeRecoveries(ctx) }()
+	resumed := false
+	t.Cleanup(func() {
+		if !resumed {
+			close(calendar.resume)
+		}
+		stop()
+		<-done
+	})
+	select {
+	case <-calendar.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("continuous calculation did not reach calendar seam")
+	}
+	var computing RangeView
+	captureHTTP(t, "GET", f.rangeURL, "", 200, &computing)
+	retained, _ := json.Marshal(computing.Result)
+	if computing.Status != "computing" || string(retained) != string(old) {
+		t.Fatal("complete backtest lost during historical recovery")
+	}
+	// Approved isolated execution fault: another executor owns and finishes
+	// this recovery. Observe all consequences through public HTTP afterward.
+	if _, err := f.service.DB.Exec("UPDATE rotation_recovery_run SET owner=owner+1,state='failed',stage='calculation_failed',message='replacement executor failed',lease_until=NULL WHERE id=?", accepted.Run.ID); err != nil {
+		t.Fatal(err)
+	}
+	close(calendar.resume)
+	resumed = true
+	// The named calculation lock proves the old executor has finished; do not
+	// infer this from a transient observation timeout or a recovery status.
+	barrier, err := f.service.DB.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var acquired int
+	if err := barrier.QueryRowContext(context.Background(), "SELECT GET_LOCK('candela_etf_publication',10)").Scan(&acquired); err != nil || acquired != 1 {
+		barrier.Close()
+		t.Fatal("old calculation did not finish", err)
+	}
+	barrier.ExecContext(context.Background(), "SELECT RELEASE_LOCK('candela_etf_publication')")
+	barrier.Close()
+	var afterOld RangeView
+	captureHTTP(t, "GET", f.rangeURL, "", 200, &afterOld)
+	preserved, _ := json.Marshal(afterOld.Result)
+	if string(preserved) != string(old) || afterOld.Status != "computing" {
+		t.Fatal("displaced recovery published or changed current backtest state")
+	}
+	original := waitRecovery(t, f.dailyURL, accepted.Run.ID, "failed")
+	if original.Message != "replacement executor failed" {
+		t.Fatal("old recovery overwrote its successor")
+	}
+	var retry struct {
+		Run RecoveryRun `json:"run"`
+	}
+	captureHTTP(t, "POST", f.dailyURL+recoveryPath+"/"+original.ID+"/retry", "", 202, &retry)
+	finished := waitRecovery(t, f.dailyURL, retry.Run.ID, "succeeded")
+	if finished.ParentID != original.ID || finished.SyncBatchID != batch.Batch.ID {
+		t.Fatal("retry changed original raw scope")
+	}
+	var repaired RangeView
+	captureHTTP(t, "GET", f.rangeURL, "", 200, &repaired)
+	if repaired.Status != "ready" || repaired.Range.Gain == nil || *repaired.Range.Gain >= 0 {
+		t.Fatal("current owner did not publish corrected continuous result")
+	}
+}

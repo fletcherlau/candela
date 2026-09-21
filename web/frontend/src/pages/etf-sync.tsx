@@ -655,6 +655,11 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
                     basis="close"
                     origin={detail.id}
                     tradeDate={detail.endDate}
+                    historicalStartDate={
+                      detail.mode === "historical"
+                        ? detail.startDate
+                        : undefined
+                    }
                     eligible={["failed", "partial", "succeeded"].includes(
                       detail.state,
                     )}

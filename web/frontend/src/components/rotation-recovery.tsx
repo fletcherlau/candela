@@ -93,18 +93,21 @@ export function RotationRecovery({
   basis,
   origin,
   tradeDate,
+  historicalStartDate,
   eligible,
   reason,
 }: {
   basis: "reference_1445" | "close";
   origin: string;
   tradeDate: string;
+  historicalStartDate?: string;
   eligible: boolean;
   reason: string;
 }) {
   const [runs, setRuns] = useState<RecoveryRun[]>([]);
   const [current, setCurrent] = useState<RecoveryRun | null>(null);
   const [published, setPublished] = useState(false);
+  const [viewDate, setViewDate] = useState(tradeDate);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -149,23 +152,44 @@ export function RotationRecovery({
             throw new Error("恢复记录标识不匹配。");
           latest = result.run;
         }
-        const daily = await read(`/api/rotation/daily?tradeDate=${tradeDate}`, {
-          signal: controller.signal,
-        });
-        if (
-          daily.tradeDate !== tradeDate ||
-          typeof daily.closeState?.status !== "string" ||
-          typeof daily.referenceState?.status !== "string"
-        )
-          throw new Error("发布状态日期或内容异常。");
+        let isPublished = false;
+        let resultDate = tradeDate;
+        if (historicalStartDate) {
+          const scope = data.scope;
+          if (
+            scope?.mode !== "historical" ||
+            scope.startDate !== historicalStartDate ||
+            scope.endDate !== tradeDate ||
+            typeof scope.published !== "boolean" ||
+            typeof scope.viewDate !== "string" ||
+            (scope.viewDate !== "" && !/^\d{8}$/.test(scope.viewDate))
+          )
+            throw new Error("历史范围发布状态异常。");
+          isPublished = scope.published;
+          resultDate = scope.viewDate;
+        } else {
+          const daily = await read(
+            `/api/rotation/daily?tradeDate=${tradeDate}`,
+            {
+              signal: controller.signal,
+            },
+          );
+          if (
+            daily.tradeDate !== tradeDate ||
+            typeof daily.closeState?.status !== "string" ||
+            typeof daily.referenceState?.status !== "string"
+          )
+            throw new Error("发布状态日期或内容异常。");
+          isPublished =
+            basis === "close"
+              ? daily.closeState.status === "ready" && !!daily.close
+              : !!daily.reference;
+        }
         if (controller.signal.aborted) return;
         setRuns(records);
         setCurrent(latest);
-        setPublished(
-          basis === "close"
-            ? daily.closeState.status === "ready" && !!daily.close
-            : !!daily.reference,
-        );
+        setPublished(isPublished);
+        setViewDate(resultDate);
         setLoaded(true);
         setReadError("");
         pending = latest?.state === "queued" || latest?.state === "running";
@@ -186,7 +210,7 @@ export function RotationRecovery({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [basis, origin, tradeDate, revision]);
+  }, [basis, origin, tradeDate, historicalStartDate, revision]);
   async function recover() {
     if (
       writing.current ||
@@ -240,17 +264,27 @@ export function RotationRecovery({
       }
     }
   }
-  const title = basis === "close" ? "收盘结果恢复" : "14:45 参考恢复";
+  const title = historicalStartDate
+    ? "历史结果恢复"
+    : basis === "close"
+      ? "收盘结果恢复"
+      : "14:45 参考恢复";
   const canRetry =
     eligible && !published && (!current || current.state === "failed");
   return (
     <section aria-label={title} className="flex min-w-0 flex-col gap-3">
       <h4 className="text-base">{title}</h4>
       <p className="text-sm text-muted-foreground">
-        原交易日 {date(tradeDate)} ·{" "}
-        {basis === "close"
-          ? "仅续传原批次未完成步骤，完成后整组计算和发布。"
-          : "使用保存的 14:45 输入与参数恢复计算，不请求当前价格。"}
+        {historicalStartDate ? (
+          `原历史范围 ${date(historicalStartDate)} 至 ${date(tradeDate)} · 仅续传原范围未完成步骤，随后重算受影响留存日及连续回测。`
+        ) : (
+          <>
+            原交易日 {date(tradeDate)} ·{" "}
+            {basis === "close"
+              ? "仅续传原批次未完成步骤，完成后整组计算和发布。"
+              : "使用保存的 14:45 输入与参数恢复计算，不请求当前价格。"}
+          </>
+        )}
       </p>
       {loading && !loaded && (
         <Skeleton className="h-16 w-full" aria-label="正在读取恢复记录" />
@@ -267,9 +301,11 @@ export function RotationRecovery({
       {!eligible && !published && <p className="text-sm">{reason}</p>}
       {published && !current && (
         <p role="status" className="text-sm">
-          {basis === "close"
-            ? "四标的收盘数据已发布"
-            : "固定参考已发布，原始输入保持不变"}
+          {historicalStartDate
+            ? "受影响留存日与连续回测已发布"
+            : basis === "close"
+              ? "四标的收盘数据已发布"
+              : "固定参考已发布，原始输入保持不变"}
         </p>
       )}
       {current && (
@@ -282,14 +318,16 @@ export function RotationRecovery({
             </Badge>
           </div>
           <p role="status">{current.message}</p>
-          <p>
-            原目标时点：
-            {new Date(current.targetAt).toLocaleString("zh-CN", {
-              timeZone: "Asia/Shanghai",
-              hour12: false,
-            })}
-            （北京时间）
-          </p>
+          {!historicalStartDate && (
+            <p>
+              原目标时点：
+              {new Date(current.targetAt).toLocaleString("zh-CN", {
+                timeZone: "Asia/Shanghai",
+                hour12: false,
+              })}
+              （北京时间）
+            </p>
+          )}
           <p className="break-all text-xs text-muted-foreground">
             恢复任务 {current.id}
             {current.parentId && ` · 父恢复任务 ${current.parentId}`}
@@ -329,9 +367,11 @@ export function RotationRecovery({
           <Button disabled={busy || !loaded} onClick={() => void recover()}>
             {busy
               ? "正在提交恢复…"
-              : basis === "close"
-                ? "恢复收盘同步与发布"
-                : "恢复参考计算"}
+              : historicalStartDate
+                ? "恢复历史同步与发布"
+                : basis === "close"
+                  ? "恢复收盘同步与发布"
+                  : "恢复参考计算"}
           </Button>
         )}
         <Button
@@ -349,8 +389,10 @@ export function RotationRecovery({
         </Button>
         {published && (
           <Button asChild variant="link">
-            <a href={`/strategies/four-etf-rotation?tradeDate=${tradeDate}`}>
-              查看该日数据
+            <a
+              href={`/strategies/four-etf-rotation${viewDate ? `?tradeDate=${viewDate}` : ""}`}
+            >
+              {historicalStartDate ? "查看复盘与回测" : "查看该日数据"}
             </a>
           </Button>
         )}
