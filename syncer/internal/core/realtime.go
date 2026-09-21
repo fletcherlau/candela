@@ -1,16 +1,21 @@
 package core
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // RealtimeQuote 是一条盘中实时行情，Intraday Snapshot（盘中快照）的输入。
 // Latest 是取数时刻的最新价，不是收盘价。
 type RealtimeQuote struct {
-	TsCode    string
-	TradeDate string // YYYYMMDD，取自行情时间戳
-	Open      float64
-	High      float64
-	Low       float64
-	Latest    float64
+	Source     string    `json:"source,omitempty"`
+	SourceTime time.Time `json:"sourceTime"` // 原始行情的完整北京时间，不等同于计划采集时点。
+	TsCode     string
+	TradeDate  string // YYYYMMDD，取自行情时间戳
+	Open       float64
+	High       float64
+	Low        float64
+	Latest     float64
 }
 
 // RealtimeSource 是实时行情数据源（生产实现：腾讯财经 qt.gtimg.cn 的薄适配）。

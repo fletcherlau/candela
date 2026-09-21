@@ -45,6 +45,9 @@ func TestFetchRealtimeParsesQuotes(t *testing.T) {
 	if sh.TradeDate != "20260805" {
 		t.Errorf("TradeDate = %q, want 20260805（取自行情时间戳 20260805161458）", sh.TradeDate)
 	}
+	if sh.Source != "gtimg" || sh.SourceTime.Format("2006-01-02T15:04:05Z07:00") != "2026-08-05T16:14:58+08:00" {
+		t.Fatalf("full source evidence lost: %s %v", sh.Source, sh.SourceTime)
+	}
 	if sh.Open != 3.228 || sh.High != 3.238 || sh.Low != 3.205 || sh.Latest != 3.228 {
 		t.Errorf("sh510880 OHLC/Latest = %v/%v/%v/%v, want 3.228/3.238/3.205/3.228",
 			sh.Open, sh.High, sh.Low, sh.Latest)
@@ -94,5 +97,19 @@ func TestFetchRealtimeRejectsUnsupportedTsCode(t *testing.T) {
 	_, err := s.FetchRealtime(context.Background(), []string{"510880"})
 	if err == nil {
 		t.Fatal("expected error for ts_code without market suffix, got nil")
+	}
+}
+
+func TestFetchRealtimeRejectsInvalidFullSourceTimestamp(t *testing.T) {
+	for _, stamp := range []string{"20261305161458", "20260230161458", "20260805241458", "20260805166058", "20260805abcdef"} {
+		t.Run(stamp, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(strings.ReplaceAll(gtimgSample, "20260805161458", stamp)))
+			}))
+			defer srv.Close()
+			if _, err := newGtimgSource(srv.URL).FetchRealtime(context.Background(), []string{"510880.SH", "159915.SZ"}); err == nil {
+				t.Fatal("invalid full source time was accepted as a trustworthy trading date")
+			}
+		})
 	}
 }

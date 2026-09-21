@@ -145,6 +145,12 @@ func parseGtimgStatement(stmt string) (core.RealtimeQuote, error) {
 	if len(dt) != 14 {
 		return q, fmt.Errorf("gtimg 行情时间戳格式非法（%s: %q，期望 yyyyMMddHHmmss）", tsCode, dt)
 	}
+	sourceTime, err := time.ParseInLocation("20060102150405", dt, time.FixedZone("Asia/Shanghai", 8*3600))
+	if err != nil || sourceTime.Format("20060102150405") != dt {
+		return q, fmt.Errorf("gtimg 行情时间戳无效（%s）", tsCode)
+	}
+	q.Source = "gtimg"
+	q.SourceTime = sourceTime
 	q.TsCode = tsCode
 	q.TradeDate = dt[:8]
 	return q, nil
