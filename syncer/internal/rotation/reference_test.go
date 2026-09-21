@@ -40,6 +40,11 @@ func TestReferenceHTTPPublishesFrozenMetricsOnce(t *testing.T) {
 			t.Fatalf("flat-series worked example: %+v", card)
 		}
 	}
+	var record struct{ Run CaptureRun }
+	captureHTTP(t, "GET", api+"/20250103", "", 200, &record)
+	if record.Run.Stage != "reference_published" {
+		t.Fatalf("management still claims reference pending: %+v", record.Run)
+	}
 	first, _ := json.Marshal(view.Reference)
 	// Later history corrections, a reconstructed reader, and duplicate submission
 	// cannot change the original reference or cause additional live quote requests.
@@ -115,4 +120,106 @@ func seedReferenceScenario(t *testing.T, date string) (*sql.DB, *Service, *captu
 	svc := &Service{DB: db, Calendar: fixtureCalendar{}, Realtime: source, QuantileWindow: 5, Now: func() time.Time { return target.Add(3 * time.Second) }}
 
 	return db, svc, source
+}
+
+func TestReferenceHTTPFrozenHistoryDistinguishesSuspensionGapAndShortWindow(t *testing.T) {
+	for _, scenario := range []string{"verified_suspension", "unknown_gap", "short_window"} {
+		t.Run(scenario, func(t *testing.T) {
+			db, svc, _ := seedReferenceScenario(t, "20220114")
+			code, date := "513100.SH", "20220113"
+			if scenario == "unknown_gap" {
+				date = "20220112"
+			}
+			if scenario == "short_window" {
+				if _, err := db.Exec("DELETE FROM etf_daily WHERE ts_code=? AND trade_date<'20220113'", code); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := db.Exec("DELETE FROM etf_daily WHERE ts_code=? AND trade_date=?", code, date); err != nil {
+				t.Fatal(err)
+			}
+			api := captureAPI(t, svc)
+			captureHTTP(t, "POST", api, `{"tradeDate":"20220114"}`, 202, nil)
+			startCaptureWorker(t, svc)
+			waitCapture(t, api, "20220114", "captured")
+			// Recover calculation after the live history/calendar has changed. Only the
+			// evidence saved with the original input is permitted to determine metrics.
+			if _, err := db.Exec("DELETE FROM rotation_calendar"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Exec("UPDATE etf_daily SET close=190,high=190"); err != nil {
+				t.Fatal(err)
+			}
+			startReferenceWorker(t, svc)
+			until := time.Now().Add(3 * time.Second)
+			var view DailyView
+			for {
+				captureHTTP(t, "GET", strings.TrimSuffix(api, capturePath)+"/api/v1/rotation/daily?tradeDate=20220114", "", 200, &view)
+				if view.Reference != nil {
+					break
+				}
+				if time.Now().After(until) {
+					t.Fatal("reference calculation did not complete")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			card := view.Reference.Cards[3]
+			if card.Price == nil || *card.Price != 103 {
+				t.Fatalf("valid reference price lost: %+v", card)
+			}
+			if scenario == "verified_suspension" {
+				if card.Score == nil || *card.Score != 0 || card.Quantile == nil || *card.Quantile != 50 {
+					t.Fatalf("verified full suspension changed formula: %+v", card)
+				}
+			} else {
+				if card.Score != nil || card.Quantile != nil || card.Weight != nil || card.Reasons["score"] == "" {
+					t.Fatalf("missing history invented indicators: %+v", card)
+				}
+				for _, c := range view.Reference.Cards {
+					if c.Rank != nil {
+						t.Fatal("partial universe received formal rankings")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestReferenceHTTPUnsupportedFrozenParametersAreReportedAsFailed(t *testing.T) {
+	db, svc, _ := seedReferenceScenario(t, "20250103")
+	if err := svc.PublishClose(context.Background(), "20250102"); err != nil {
+		t.Fatal(err)
+	}
+	api := captureAPI(t, svc)
+	captureHTTP(t, "POST", api, `{"tradeDate":"20250103"}`, 202, nil)
+	startCaptureWorker(t, svc)
+	waitCapture(t, api, "20250103", "captured")
+	// A stored input from an unsupported calculator version must not silently
+	// use the running service's current defaults after a deployment/recovery.
+	if _, err := db.Exec("UPDATE rotation_capture_run SET params=JSON_SET(params,'$.version','unsupported-version')"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("UPDATE rotation_reference_input SET payload=JSON_SET(payload,'$.params.version','unsupported-version')"); err != nil {
+		t.Fatal(err)
+	}
+	startReferenceWorker(t, svc)
+	var view DailyView
+	until := time.Now().Add(3 * time.Second)
+	for {
+		captureHTTP(t, "GET", strings.TrimSuffix(api, capturePath)+"/api/v1/rotation/daily", "", 200, &view)
+		if view.Pending != nil && view.Pending.Reference.Status == "failed" {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatalf("unsupported calculator not reported: %+v", view)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if view.TradeDate != "20250102" || view.Close == nil || view.Reference != nil {
+		t.Fatalf("failed reference replaced fallback: %+v", view)
+	}
+	var record struct{ Run CaptureRun }
+	captureHTTP(t, "GET", api+"/20250103", "", 200, &record)
+	if record.Run.Stage != "reference_failed" {
+		t.Fatalf("management failure missing: %+v", record.Run)
+	}
 }

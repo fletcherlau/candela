@@ -92,6 +92,8 @@ var migrations = [][]string{{
  PRIMARY KEY(trade_date,ts_code),
  FOREIGN KEY(trade_date) REFERENCES rotation_capture_run(trade_date) ON DELETE CASCADE
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+}, {
+	`ALTER TABLE rotation_daily ADD COLUMN missing JSON NULL`,
 }}
 
 func migrate(ctx context.Context, db *sql.DB) error {

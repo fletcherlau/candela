@@ -64,8 +64,12 @@ func TestBrowserHarness(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if strings.HasPrefix(r.URL.Path, "/api/v1/rotation/reference-captures") {
-			if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" {
-				target, _ := url.Parse("http://127.0.0.1:18086")
+			if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+				address := "http://127.0.0.1:18086"
+				if os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+					address = "http://127.0.0.1:18087"
+				}
+				target, _ := url.Parse(address)
 				httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 			} else {
 				w.Write([]byte(`{"runs":[]}`))
@@ -73,11 +77,20 @@ func TestBrowserHarness(t *testing.T) {
 			return
 		}
 		if r.URL.Path == "/api/v1/rotation/daily" {
-			if os.Getenv("CANDELA_DAILY_BROWSER_TEST") == "1" {
-				target, _ := url.Parse("http://127.0.0.1:18084")
+			if os.Getenv("CANDELA_DAILY_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+				address := "http://127.0.0.1:18084"
+				if os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+					address = "http://127.0.0.1:18087"
+				}
+				target, _ := url.Parse(address)
 				httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 			} else {
-				json.NewEncoder(w).Encode(map[string]any{"status": "unavailable", "message": "浏览器测试未接入每日数据", "close": nil, "reference": nil, "referenceStatus": "missing"})
+				stage := map[string]any{"status": "unavailable", "available": 0, "message": "浏览器测试未接入每日数据", "updatedAt": "", "missing": []any{}}
+				slips := []map[string]any{}
+				for _, code := range []string{"510880.SH", "518880.SH", "159915.SZ", "513100.SH"} {
+					slips = append(slips, map[string]any{"code": code, "bps": nil, "reason": "未接入每日数据"})
+				}
+				json.NewEncoder(w).Encode(map[string]any{"requestedDate": "", "currentDate": "", "currentTradingDate": "", "tradeDate": "", "selectionMode": "default", "fallback": false, "fallbackReason": "", "calendarStatus": "unavailable", "status": "unavailable", "message": "浏览器测试未接入每日数据", "close": nil, "reference": nil, "referenceStatus": "missing", "referenceState": stage, "closeState": stage, "priceSlippage": slips})
 			}
 			return
 		}

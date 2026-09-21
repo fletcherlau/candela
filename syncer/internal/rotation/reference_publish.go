@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"syncer/internal/core"
 	"time"
 )
@@ -88,6 +89,9 @@ func (s *Service) publishReference(ctx context.Context, date string) error {
 		if err != nil {
 			return err
 		}
+		if _, err = tx.ExecContext(ctx, "UPDATE rotation_capture_run SET stage='reference_failed',message='原始数据已保存，冻结参数版本不受当前计算器支持，参考未发布',updated_at=UTC_TIMESTAMP(6) WHERE trade_date=?", date); err != nil {
+			return err
+		}
 		return tx.Commit()
 	}
 	panels := map[string][]core.DailyBarAdj{}
@@ -106,7 +110,16 @@ func (s *Service) publishReference(ctx context.Context, date string) error {
 	}
 	result := s.dailyResult(date, panels, prices, reasons, run.Params)
 	result.Basis = "reference_1445"
-	result.Source = "固定 14:45 行情及已冻结历史依据"
+	sources := []string{}
+	seenSources := map[string]bool{}
+	for _, item := range run.Items {
+		source := item.Input.Quote.Source
+		if !seenSources[source] {
+			sources = append(sources, source)
+			seenSources[source] = true
+		}
+	}
+	result.Source = strings.Join(sources, "、") + " 固定 14:45 行情及已冻结历史依据"
 	for i := range result.Cards {
 		result.Cards[i].SourceTime = run.Items[i].Input.Quote.SourceTime.Format(time.RFC3339Nano)
 		result.Cards[i].CapturedAt = run.Items[i].Input.CapturedAt.Format(time.RFC3339Nano)
@@ -117,6 +130,9 @@ func (s *Service) publishReference(ctx context.Context, date string) error {
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,payload,published_at) VALUES (?,'reference_1445',0,'ready',4,'固定 14:45 参考已发布',?,?)`, date, payload, s.now().UTC())
 	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "UPDATE rotation_capture_run SET stage='reference_published',message='原始数据已保存，固定参考已发布',updated_at=UTC_TIMESTAMP(6) WHERE trade_date=?", date); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -130,8 +146,10 @@ func referencePanel(date string, input *CaptureInput) ([]core.DailyBarAdj, strin
 		return nil, "冻结的当日复权因子缺失／无效"
 	}
 	calendar := map[string]bool{}
+	suspended := map[string]bool{}
 	for _, d := range input.Calendar {
 		calendar[d.Date] = d.Open
+		suspended[d.Date] = d.Suspended
 	}
 	previous := ""
 	for d, open := range calendar {
@@ -170,7 +188,7 @@ func referencePanel(date string, input *CaptureInput) ([]core.DailyBarAdj, strin
 			}
 			continue
 		}
-		if open && !seen[key] {
+		if open && !seen[key] && !suspended[key] {
 			return nil, key + " 冻结的历史行情缺失，无法计算"
 		}
 		if !open && seen[key] {

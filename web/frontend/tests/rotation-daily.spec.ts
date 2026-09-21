@@ -19,7 +19,7 @@ test("real database publication shows daily six fields independently of backtest
   await expect(daily).toContainText("2025-01-02");
   const table = daily.getByRole("table");
   for (const field of [
-    "收盘价",
+    "价格",
     "20 日动量",
     "排名",
     "年化波动率",
@@ -30,7 +30,7 @@ test("real database publication shows daily six fields independently of backtest
       table.getByRole("columnheader", { name: field, exact: true }),
     ).toBeVisible();
   }
-  await expect(table.getByRole("row")).toHaveCount(5);
+  await expect(table.getByRole("row")).toHaveCount(9);
   await expect(table).toContainText("100.000");
   await expect(table).toContainText("50.00%");
   await expect(table).toContainText("100.00%");
@@ -56,7 +56,7 @@ for (const width of [1440, 820, 390, 320]) {
       for (const card of await cards.all()) {
         await expect(card).toBeVisible();
         for (const field of [
-          "收盘价",
+          "价格",
           "20 日动量",
           "排名",
           "年化波动率",
@@ -109,6 +109,15 @@ test("daily failure keeps its dated publication while backtest remains usable", 
 test("loading, partial close, unknown fields and expired login are explicit", async ({
   page,
 }) => {
+  const initial = await page.request.get("/api/rotation/daily", {
+    headers: {
+      "Cf-Access-Jwt-Assertion": readFileSync(
+        "/tmp/candela-browser-test-token",
+        "utf8",
+      ),
+    },
+  });
+  const baseline = await initial.json();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -117,6 +126,14 @@ test("loading, partial close, unknown fields and expired login are explicit", as
     await gate;
     await r.fulfill({
       json: {
+        ...baseline,
+        closeState: {
+          ...baseline.closeState,
+          status: "pending",
+          available: 3,
+          message: "收盘数据已到齐 3/4；513100.SH：官方行情未到齐",
+          missing: [{ code: "513100.SH", reason: "官方行情未到齐" }],
+        },
         status: "pending",
         tradeDate: "20250102",
         available: 3,

@@ -18,13 +18,10 @@ import (
 func captureAPI(t *testing.T, s *Service) string {
 	t.Helper()
 	routes := router.NewRouter()
-	for _, route := range s.CaptureRoutes(middleware.NewApiKeyAuthMiddleware("fixture-only").Handle) {
+	for _, route := range append(s.CaptureRoutes(middleware.NewApiKeyAuthMiddleware("fixture-only").Handle), s.DailyRoutes(middleware.NewApiKeyAuthMiddleware("fixture-only").Handle)...) {
 		if err := routes.Handle(route.Method, route.Path, route.Handler); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if err := routes.Handle(http.MethodGet, "/api/v1/rotation/daily", middleware.NewApiKeyAuthMiddleware("fixture-only").Handle(s.DailyHandler().ServeHTTP)); err != nil {
-		t.Fatal(err)
 	}
 	server := httptest.NewServer(routes)
 	t.Cleanup(server.Close)

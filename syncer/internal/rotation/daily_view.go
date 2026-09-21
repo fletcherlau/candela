@@ -51,7 +51,16 @@ func (s *Service) dailyView(ctx context.Context, requested string) (DailyView, e
 		return v, tx.Commit()
 	}
 	if calendarStatus != "ready" {
-		return DailyView{SelectionMode: "default", CurrentDate: today, Status: "calendar_unavailable", CalendarStatus: calendarStatus, Message: "交易日历尚未缓存完整，无法确认默认展示日期", ReferenceStatus: "missing"}, tx.Commit()
+		v, e := readDailyDate(ctx, tx, "", revision)
+		if e != nil {
+			return v, e
+		}
+		v.SelectionMode = "default"
+		v.CurrentDate = today
+		v.Status = "calendar_unavailable"
+		v.CalendarStatus = calendarStatus
+		v.Message = "交易日历尚未缓存完整，无法确认默认展示日期"
+		return v, tx.Commit()
 	}
 	desired := current
 	var pending *DailyProgress
@@ -130,7 +139,11 @@ func cachedTradingDay(ctx context.Context, tx *sql.Tx, through, today string) (s
 
 func readDailyDate(ctx context.Context, tx *sql.Tx, date string, revision int64) (DailyView, error) {
 	v := DailyView{TradeDate: date, Status: "unavailable", Message: "该交易日尚无已发布数据", ReferenceStatus: "missing", ReferenceState: DailyStage{Status: "missing", Message: "14:45 参考未留存", Missing: []DailyMissing{}}, CloseState: DailyStage{Status: "unavailable", Message: "收盘数据尚未发布", Missing: []DailyMissing{}}}
-	rows, err := tx.QueryContext(ctx, `SELECT basis,status,available,message,payload,revision,DATE_FORMAT(updated_at,'%Y-%m-%dT%H:%i:%sZ') FROM rotation_daily WHERE trade_date=?`, date)
+	for _, code := range core.RotationCodes {
+		v.ReferenceState.Missing = append(v.ReferenceState.Missing, DailyMissing{Code: code, Reason: "原 14:45 数据未留存"})
+		v.CloseState.Missing = append(v.CloseState.Missing, DailyMissing{Code: code, Reason: "收盘数据尚未发布"})
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT basis,status,available,message,payload,revision,DATE_FORMAT(updated_at,'%Y-%m-%dT%H:%i:%sZ'),missing FROM rotation_daily WHERE trade_date=?`, date)
 	if err != nil {
 		return v, err
 	}
@@ -138,12 +151,17 @@ func readDailyDate(ctx context.Context, tx *sql.Tx, date string, revision int64)
 	for rows.Next() {
 		var basis string
 		var state DailyStage
-		var data []byte
+		var data, missing []byte
 		var rev int64
-		if err = rows.Scan(&basis, &state.Status, &state.Available, &state.Message, &data, &rev, &state.UpdatedAt); err != nil {
+		if err = rows.Scan(&basis, &state.Status, &state.Available, &state.Message, &data, &rev, &state.UpdatedAt, &missing); err != nil {
 			break
 		}
 		state.Missing = []DailyMissing{}
+		if len(missing) > 0 {
+			if err = json.Unmarshal(missing, &state.Missing); err != nil {
+				break
+			}
+		}
 		var result *DailyResult
 		if len(data) > 0 {
 			if err = json.Unmarshal(data, &result); err != nil {
@@ -156,6 +174,9 @@ func readDailyDate(ctx context.Context, tx *sql.Tx, date string, revision int64)
 		}
 		switch basis {
 		case "close":
+			if state.Status == "ready" {
+				state.Message = "四标的收盘数据已发布"
+			}
 			if rev != revision {
 				state.Status = "updating"
 				state.Message = "收盘数据正在更新，保留已发布完整结果"

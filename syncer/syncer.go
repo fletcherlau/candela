@@ -136,7 +136,7 @@ func main() {
 	handler.RegisterHandlers(server, svcCtx)
 	handler.RegisterCatalog(server, svcCtx, st)
 	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/backtest", Handler: svcCtx.ApiKeyAuth(rotationService.Handler().ServeHTTP)})
-	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/daily", Handler: svcCtx.ApiKeyAuth(rotationService.DailyHandler().ServeHTTP)})
+	server.AddRoutes(rotationService.DailyRoutes(svcCtx.ApiKeyAuth))
 	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/backtest/range", Handler: svcCtx.ApiKeyAuth(rotationService.RangeHandler().ServeHTTP)})
 	server.AddRoutes(rotationService.CaptureRoutes(svcCtx.ApiKeyAuth))
 	runStore := syncrun.NewStore(db)

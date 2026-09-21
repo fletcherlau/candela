@@ -70,10 +70,16 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	}
 	available := len(prices)
 	status, message := "pending", fmt.Sprintf("收盘数据已到齐 %d/4", available)
+	missing := []DailyMissing{}
 	for _, code := range core.RotationCodes {
 		if _, present := prices[code]; !present {
+			missing = append(missing, DailyMissing{Code: code, Reason: reasons[code]})
 			message += "；" + code + "：" + reasons[code]
 		}
+	}
+	missingJSON, err := json.Marshal(missing)
+	if err != nil {
+		return err
 	}
 	var payload []byte
 	var published any
@@ -84,7 +90,7 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 			return err
 		}
 		published = s.now().UTC()
-		status, message = "ready", "四标的收盘数据已发布；14:45 参考尚未留存"
+		status, message = "ready", "四标的收盘数据已发布"
 	}
 	var current int64
 	if err = tx.QueryRowContext(ctx, "SELECT revision FROM rotation_result WHERE id=1 FOR UPDATE").Scan(&current); err != nil {
@@ -93,9 +99,9 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	if current != revision {
 		return nil
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,payload,published_at)
- VALUES (?,'close',?,?,?,?,?,?) ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),available=VALUES(available),message=VALUES(message),
- payload=COALESCE(VALUES(payload),payload),published_at=COALESCE(VALUES(published_at),published_at),updated_at=CURRENT_TIMESTAMP(6)`, date, revision, status, available, message, payload, published)
+	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,payload,published_at,missing)
+ VALUES (?,'close',?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE revision=VALUES(revision),status=VALUES(status),available=VALUES(available),message=VALUES(message),
+ missing=VALUES(missing),payload=COALESCE(VALUES(payload),payload),published_at=COALESCE(VALUES(published_at),published_at),updated_at=CURRENT_TIMESTAMP(6)`, date, revision, status, available, message, payload, published, missingJSON)
 	if err != nil {
 		return err
 	}

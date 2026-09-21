@@ -70,7 +70,7 @@ func TestDailyHTTPDefaultsFollowPublicationReadiness(t *testing.T) {
 				t.Fatal(err)
 			}
 			partial := read()
-			if partial.TradeDate != "20250103" || partial.Reference == nil || partial.Close != nil || partial.CloseState.Available != 3 {
+			if partial.TradeDate != "20250103" || partial.Reference == nil || partial.Close != nil || partial.CloseState.Available != 3 || len(partial.CloseState.Missing) != 1 || partial.CloseState.Missing[0].Code != "513100.SH" {
 				t.Fatalf("partial close replaced reference: %+v", partial)
 			}
 		}
@@ -81,6 +81,9 @@ func TestDailyHTTPDefaultsFollowPublicationReadiness(t *testing.T) {
 	complete := read()
 	if complete.TradeDate != "20250103" || complete.Reference == nil || complete.Close == nil || len(complete.PriceSlippage) != 4 {
 		t.Fatalf("complete comparison: %+v", complete)
+	}
+	if strings.Contains(complete.CloseState.Message, "参考尚未留存") {
+		t.Fatal("published reference is contradicted by close stage", complete.CloseState.Message)
 	}
 	for _, slip := range complete.PriceSlippage {
 		if slip.Bps == nil || math.Abs(*slip.Bps-30) > 1e-7 {
@@ -201,4 +204,50 @@ func TestDailyHTTPMissingAndHistoricalSelectionDoNotMixDates(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDailyHTTPPartialReferenceKeepsPreviousSession(t *testing.T) {
+	_, svc, source := seedReferenceScenario(t, "20250103")
+	source.failures["513100.SH"] = true
+	if err := svc.PublishClose(context.Background(), "20250102"); err != nil {
+		t.Fatal(err)
+	}
+	api := captureAPI(t, svc)
+	captureHTTP(t, "POST", api, `{"tradeDate":"20250103"}`, 202, nil)
+	startCaptureWorker(t, svc)
+	startReferenceWorker(t, svc)
+	waitCapture(t, api, "20250103", "partial")
+	var view DailyView
+	captureHTTP(t, "GET", strings.TrimSuffix(api, capturePath)+"/api/v1/rotation/daily", "", 200, &view)
+	if view.TradeDate != "20250102" || view.Close == nil || view.Reference != nil || view.Pending == nil || view.Pending.Reference.Available != 3 || len(view.Pending.Reference.Missing) != 1 || view.Pending.Reference.Missing[0].Code != "513100.SH" {
+		t.Fatalf("partial reference escaped or lost missing object: %+v", view)
+	}
+}
+
+func TestDailyHTTPInvalidSavedPricesNeverProduceSlippage(t *testing.T) {
+	db, svc, _ := seedReferenceScenario(t, "20250103")
+	if err := svc.PublishClose(context.Background(), "20250102"); err != nil {
+		t.Fatal(err)
+	}
+	// Fixture an otherwise valid saved reference for the same day. HTTP is the
+	// assertion boundary; corrupt nullable fields must never become zero bps.
+	if _, err := db.Exec(`INSERT INTO rotation_daily(trade_date,basis,revision,status,available,payload,published_at) SELECT trade_date,'reference_1445',0,'ready',4,JSON_SET(payload,'$.basis','reference_1445'),published_at FROM rotation_daily WHERE trade_date='20250102' AND basis='close'`); err != nil {
+		t.Fatal(err)
+	}
+	api := captureAPI(t, svc)
+	url := strings.TrimSuffix(api, capturePath) + "/api/v1/rotation/daily?tradeDate=20250102"
+	for _, value := range []string{"0", "-1", "null"} {
+		if _, err := db.Exec(`UPDATE rotation_daily SET payload=JSON_SET(payload,'$.cards[0].price',CAST(? AS JSON)) WHERE trade_date='20250102' AND basis='reference_1445'`, value); err != nil {
+			t.Fatal(err)
+		}
+		var view DailyView
+		captureHTTP(t, "GET", url, "", 200, &view)
+		if len(view.PriceSlippage) != 4 || view.PriceSlippage[0].Bps != nil || view.PriceSlippage[0].Reason == "" {
+			t.Fatalf("%s became numeric slippage: %+v", value, view.PriceSlippage)
+		}
+	}
+	if _, err := db.Exec(`UPDATE rotation_daily SET payload=JSON_SET(payload,'$.cards[0].price','NaN') WHERE trade_date='20250102' AND basis='reference_1445'`); err != nil {
+		t.Fatal(err)
+	}
+	captureHTTP(t, "GET", url, "", 503, nil)
 }
