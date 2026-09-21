@@ -17,8 +17,11 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import { Rotation } from "@/pages/rotation";
 import { DataManagement } from "@/pages/data-management";
+
+const Rotation = lazy(() =>
+  import("@/pages/rotation").then((module) => ({ default: module.Rotation })),
+);
 
 const DesignPreview = lazy(() =>
   import("@/pages/design-preview").then((module) => ({
@@ -235,6 +238,12 @@ export function App() {
       </Suspense>
     );
   }
+  if (location.pathname === "/strategies/four-etf-rotation")
+    return (
+      <Suspense fallback={<p role="status">正在打开策略研究…</p>}>
+        <Rotation />
+      </Suspense>
+    );
   const admin =
     location.pathname === "/admin" || location.pathname === "/admin/data";
   return (
@@ -255,13 +264,7 @@ export function App() {
             tabIndex={-1}
             className="mx-auto w-full max-w-6xl flex-1 px-6 sm:px-8"
           >
-            {location.pathname === "/market" ? (
-              <Market />
-            ) : location.pathname === "/strategies/four-etf-rotation" ? (
-              <Rotation />
-            ) : (
-              <Home />
-            )}
+            {location.pathname === "/market" ? <Market /> : <Home />}
           </main>
           <footer className="border-t">
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs text-muted-foreground sm:px-8">

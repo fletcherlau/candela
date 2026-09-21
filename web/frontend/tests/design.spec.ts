@@ -3,6 +3,9 @@ import { test, expect } from "@playwright/test";
 test("shared primitives work outside the sample; portals inherit without changing legacy UI", async ({ page }) => {
   await page.goto("/tests/fixtures/research-theme.html");
   const scope = page.getByTestId("research");
+  await expect(scope.getByRole("button", { name: "研究按钮", exact: true })).toBeVisible();
+  // Wait for local fonts before clicking: late font layout shifts can move the trigger.
+  await page.evaluate(() => document.fonts.ready);
   await expect(scope.getByRole("button", { name: "研究按钮", exact: true })).toHaveCSS("background-color", "rgb(36, 36, 32)");
   await expect(page.getByTestId("legacy").getByRole("button", { name: "原有按钮", exact: true })).toHaveCSS("background-color", "rgb(42, 113, 87)");
   await expect(scope.getByLabel("研究输入")).toHaveCSS("border-radius", "4px");

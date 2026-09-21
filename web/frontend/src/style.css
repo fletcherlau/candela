@@ -536,3 +536,80 @@ input[type="checkbox"] {
   outline: var(--focus-width) solid var(--ink);
   outline-offset: var(--focus-offset);
 }
+
+/* Published four-ETF report. Shared ResearchTheme owns visual tokens and controls. */
+.rotation-page { min-height: 100vh; background: var(--canvas); padding-inline: var(--page-padding); }
+.rotation-shell { max-width: var(--layout-shell); margin-inline: auto; }
+.rotation-page .research-nav { min-height: 88px; }
+.rotation-page .research-nav [aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; }
+.rotation-skip { position: absolute; top: 8px; left: 8px; transform: translateY(-200%); background: var(--paper); padding: 12px; }
+.rotation-skip:focus { transform: none; z-index: 10; }
+.rotation-status { display: flex; flex-direction: column; gap: 14px; border-block: 1px solid var(--rule); padding-block: 20px; margin-bottom: var(--section-space); }
+.rotation-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.rotation-page .rotation-section-heading h2 { font-size: var(--section-size); }
+.rotation-status-grid, .rotation-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
+.rotation-status-grid dt, .rotation-metrics dt, .rotation-detail-values dt { font: 400 12px/1.6 var(--body-font); color: var(--ink-muted); }
+.rotation-status-grid dd { margin: 6px 0 0; font-size: 18px; }
+.rotation-page .rotation-caption { font: 400 12px/1.8 var(--body-font); color: var(--ink-muted); overflow-wrap: anywhere; }
+.rotation-loading { display: flex; flex-direction: column; gap: 16px; }
+.rotation-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; font-size: 12px; }
+.rotation-metrics { padding-block: 24px; margin-bottom: 16px; max-width: calc(100% - var(--layout-aside) - var(--layout-column-gap)); }
+.rotation-metrics > div + div { border-left: 1px solid var(--rule); padding-left: 24px; }
+.rotation-metrics dd { font: 400 var(--metric-size)/1.3 var(--number-font); margin: 12px 0 0; }
+.rotation-metrics .rotation-period { font-size: 17px; line-height: 1.5; }
+.rotation-figure-grid { display: grid; grid-template-columns: minmax(0,1fr) var(--layout-aside); gap: var(--layout-column-gap); margin-top: 20px; }
+.rotation-figures { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.rotation-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; }
+.rotation-legend :is(label,span) { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.rotation-legend label { cursor: pointer; }
+.rotation-legend i { display: inline-block; width: 18px; border-top: 2px solid; flex-shrink: 0; }
+.rotation-plot { height: var(--chart-height); width: 100%; min-width: 0; overflow: hidden; touch-action: pan-y; user-select: none; }
+.rotation-plot-small { height: 160px; }
+.rotation-controls { display: flex; flex-direction: column; gap: 20px; }
+.rotation-date-fields, .rotation-sliders { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.rotation-page [data-slot="field"] { min-width: 0; }
+.rotation-page input { min-width: 0; }
+.rotation-page input[type="range"] { width: 100%; height: 44px; accent-color: var(--ink); }
+.rotation-page input[type="date"] { width: 100%; max-width: 100%; }
+.rotation-aside { display: flex; flex-direction: column; gap: 14px; font: 400 12px/1.9 var(--body-font); color: var(--ink-muted); border-top: 1px solid var(--rule); padding-top: 16px; }
+.rotation-aside h3 { font-size: 18px; color: var(--ink); }
+.rotation-aside h3:not(:first-child) { margin-top: 16px; }
+.rotation-detail { display: flex; flex-direction: column; gap: 20px; border-block: 1px solid var(--rule); padding-block: 24px; margin-block: var(--section-space); }
+.rotation-detail-values { display: flex; flex-wrap: wrap; gap: 20px 32px; }
+.rotation-detail-values dd { margin-top: 6px; font: 400 22px/1.5 var(--number-font); }
+.rotation-method-section { padding-bottom: var(--section-space); }
+.rotation-method { display: flex; flex-direction: column; gap: 14px; max-width: var(--layout-reading); font: 400 var(--reading-size)/var(--reading-line) var(--display-font); padding-block: 12px; }
+.rotation-version { overflow-wrap: anywhere; }
+.rotation-method-dialog { max-height: 85dvh; overflow-y: auto; }
+.rotation-method-dialog [data-slot="dialog-title"] { padding-right: 24px; }
+.rotation-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; border-top: 1px solid var(--rule); padding-block: 24px; font-size: 12px; color: var(--ink-muted); }
+@media(max-width: 820px) {
+  .rotation-page { padding-inline: var(--page-mobile-padding); }
+  .rotation-figure-grid { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  .rotation-metrics { max-width: none; }
+  .rotation-page .report-contents { flex-direction: row; flex-wrap: wrap; gap: 0 20px; }
+  .rotation-page .report-contents > p { display: none; }
+  .rotation-aside { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .rotation-aside h3 { grid-column: 1 / -1; }
+}
+@media(max-width: 540px) {
+  .rotation-page .research-nav { flex-wrap: wrap; padding-block: 16px; gap: 10px; }
+  .rotation-page .research-nav nav { gap: 24px; flex-wrap: wrap; }
+  .rotation-page .research-brand { font-size: 34px; }
+  .rotation-status-grid { grid-template-columns: 1fr; gap: 14px; }
+  .rotation-status-grid > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .rotation-status-grid dd { font-size: 16px; }
+  .rotation-metrics { gap: 10px; padding-block: 20px; }
+  .rotation-metrics > div + div { padding-left: 10px; }
+  .rotation-metrics dd { font-size: clamp(19px,6vw,28px); }
+  .rotation-metrics .rotation-period { font-size: 12px; overflow-wrap: anywhere; }
+  .rotation-metrics dt { font-size: 11px; }
+  .rotation-plot { height: 280px; }
+  .rotation-plot-small { height: 150px; }
+  .rotation-sliders { grid-template-columns: 1fr; gap: 8px; }
+  .rotation-detail { margin-block: var(--section-mobile-space); }
+  .rotation-page .rotation-date-fields { grid-template-columns: 1fr; }
+}
+.rotation-page .research-intro { padding-block: 24px; }
+.rotation-status { gap: 8px; padding-block: 16px; margin-bottom: 24px; }
+.rotation-chart-readout { color: var(--ink); font-size: 12px; line-height: 1.8; }
