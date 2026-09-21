@@ -38,6 +38,10 @@ func TestSyncBrowserHarness(t *testing.T) {
 	routes := maintenanceRouter(t, st)
 	mux.Handle("/api/v1/data/sync-runs", routes)
 	mux.Handle("/api/v1/data/sync-runs/", routes)
+	mux.HandleFunc("/api/v1/rotation/reference-captures", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"runs":[]}`))
+	})
 	mux.HandleFunc("/api/v1/data/catalog", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(store.NewMySQLStore(db).Catalog(r.Context()))
 	})

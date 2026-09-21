@@ -35,7 +35,7 @@ func dailyDatabase(t *testing.T) *sql.DB {
 	if err = schema.Ensure(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"rotation_daily", "rotation_coverage", "rotation_calendar", "etf_daily", "etf_adj_factor"} {
+	for _, table := range []string{"rotation_capture_run", "rotation_daily", "rotation_coverage", "rotation_calendar", "etf_daily", "etf_adj_factor"} {
 		if _, err = db.Exec("DELETE FROM " + table); err != nil {
 			t.Fatal(err)
 		}

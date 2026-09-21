@@ -92,6 +92,10 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.syncRuns(w, r)
 		return
 	}
+	if r.URL.Path == capturePrefix || strings.HasPrefix(r.URL.Path, capturePrefix+"/") {
+		a.rotationCaptures(w, r)
+		return
+	}
 	switch r.URL.Path {
 	case "/etf-rotation/dca-dashboard/":
 		http.Redirect(w, r, "/etf-rotation/dca-dashboard/index.html", http.StatusFound)

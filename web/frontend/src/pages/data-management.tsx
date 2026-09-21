@@ -1,3 +1,4 @@
+import { RotationCaptures } from "@/components/rotation-captures";
 import { IndexSync } from "./index-sync";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
@@ -185,6 +186,7 @@ export function DataManagement() {
         </Button>
       </div>
       <IndexSync onCompleted={() => setRefresh((value) => value + 1)} />
+      <RotationCaptures />
       <div aria-label="数据概览" className="grid gap-4 sm:grid-cols-3">
         {summary.map((item) => (
           <Card key={item.title} className="gap-3 shadow-none">
