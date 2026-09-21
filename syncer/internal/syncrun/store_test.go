@@ -181,7 +181,7 @@ func TestMySQLConcurrentDedupQueueAndFencing(t *testing.T) {
 	}
 	next, err := st.Claim(ctx)
 	check(t, err)
-	if next.ID != queued.ID || next.Owner <= old.Owner {
+	if next.ID != old.ID || next.Owner <= old.Owner {
 		t.Fatal("wrong queue/fence")
 	}
 	for _, err := range []error{st.Heartbeat(ctx, old), st.Finish(ctx, old, "", ""), st.Plan(ctx, old, "20240909", "", 1)} {
@@ -189,10 +189,12 @@ func TestMySQLConcurrentDedupQueueAndFencing(t *testing.T) {
 			t.Fatal("stale worker accepted", err)
 		}
 	}
-	failed, err := st.Get(ctx, old.ID)
+	recovered, err := st.Get(ctx, old.ID)
 	check(t, err)
-	if failed.State != "failed" || failed.ErrorCode != "interrupted" || count(t, db, "index_daily") != 0 {
-		t.Fatalf("lost owner %+v", failed)
+	waiting, err := st.Get(ctx, queued.ID)
+	check(t, err)
+	if recovered.State != "running" || recovered.ErrorCode != "" || waiting.State != "queued" || count(t, db, "index_daily") != 0 {
+		t.Fatalf("recovery/fencing %+v queued=%+v", recovered, waiting)
 	}
 }
 func TestMySQLDataAndCheckpointRollbackTogether(t *testing.T) {

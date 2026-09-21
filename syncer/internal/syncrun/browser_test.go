@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"sync"
 	"syncer/internal/middleware"
 	"syncer/internal/store"
 	"testing"
@@ -21,10 +22,17 @@ func TestSyncBrowserHarness(t *testing.T) {
 	st := NewStore(db)
 	f := &sourceFixture{bars: fixtureBars("20041231", Cutoff(time.Now())), hook: func(from, to string) { time.Sleep(40 * time.Millisecond) }}
 	src := sourceFor(t, f)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan struct{})
-	go func() { defer close(done); (&Worker{st, src}).Serve(ctx) }()
+	var serviceMu sync.Mutex
+	var cancel context.CancelFunc
+	var done chan struct{}
+	start := func() {
+		var ctx context.Context
+		ctx, cancel = context.WithCancel(context.Background())
+		done = make(chan struct{})
+		finished := done
+		go func() { defer close(finished); (&Worker{NewStore(db), src}).Serve(ctx) }()
+	}
+	start()
 	defer func() { cancel(); <-done }()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/data/sync-runs", st.Handler())
@@ -33,6 +41,22 @@ func TestSyncBrowserHarness(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(store.NewMySQLStore(db).Catalog(r.Context()))
 	})
 	// Test control endpoint deliberately exists only in this test binary.
+	mux.HandleFunc("/fixture/restart", func(w http.ResponseWriter, r *http.Request) {
+		serviceMu.Lock()
+		defer serviceMu.Unlock()
+		cancel()
+		<-done
+		start()
+		w.WriteHeader(204)
+	})
+
+	mux.HandleFunc("/fixture/slow", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		f.hook = func(string, string) { time.Sleep(250 * time.Millisecond) }
+		f.mu.Unlock()
+		w.WriteHeader(204)
+	})
+
 	mux.HandleFunc("/fixture/permission", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.code = 2002

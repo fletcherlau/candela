@@ -67,6 +67,15 @@ var migrations = [][]string{{
  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
  PRIMARY KEY(trade_date,basis)
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+}, {
+	`CREATE TABLE IF NOT EXISTS sync_run_event (
+ sequence BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ run_id VARCHAR(32) NOT NULL, kind VARCHAR(32) NOT NULL,
+ checkpoint CHAR(8) NOT NULL, message VARCHAR(300) NOT NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ KEY run_events(run_id,sequence),
+ FOREIGN KEY(run_id) REFERENCES sync_run(id) ON DELETE CASCADE
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }}
 
 func migrate(ctx context.Context, db *sql.DB) error {

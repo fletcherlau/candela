@@ -12,12 +12,14 @@ import (
 )
 
 var syncRunID = regexp.MustCompile(`^[a-f0-9]{32}$`)
+var syncCancelPath = regexp.MustCompile(`^/api/sync-runs/[a-f0-9]{32}/cancel$`)
 
 // Only this explicit index-run API is writable. Authentication and same-origin
 // CSRF have already run in ServeHTTP; no arbitrary upstream path is accepted.
 func (a *application) syncRuns(w http.ResponseWriter, r *http.Request) {
 	suffix := strings.TrimPrefix(r.URL.Path, "/api/sync-runs")
-	if suffix != "" && !syncRunID.MatchString(strings.TrimPrefix(suffix, "/")) {
+	cancelling := syncCancelPath.MatchString(r.URL.Path)
+	if suffix != "" && !cancelling && !syncRunID.MatchString(strings.TrimPrefix(suffix, "/")) {
 		http.NotFound(w, r)
 		return
 	}
@@ -30,7 +32,19 @@ func (a *application) syncRuns(w http.ResponseWriter, r *http.Request) {
 		method = http.MethodGet
 	}
 	var body []byte
-	if method == http.MethodPost {
+	if cancelling {
+		if method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			http.Error(w, "不支持此操作。", 405)
+			return
+		}
+		input, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1))
+		if err != nil || len(input) != 0 {
+			http.Error(w, "取消操作不接受请求内容。", 400)
+			return
+		}
+	}
+	if method == http.MethodPost && !cancelling {
 		var input struct {
 			Mode string `json:"mode"`
 		}

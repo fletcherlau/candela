@@ -54,6 +54,11 @@ func (w *Worker) Execute(ctx context.Context, r Run) {
 				err := w.Store.Heartbeat(beat, r)
 				stop()
 				if err != nil {
+					if errors.Is(err, ErrCancelled) {
+						finish, end := context.WithTimeout(context.Background(), 5*time.Second)
+						_ = w.Store.completeCancellation(finish, r)
+						end()
+					}
 					cancel()
 					return
 				}
@@ -61,6 +66,7 @@ func (w *Worker) Execute(ctx context.Context, r Run) {
 		}
 	}()
 	err := w.execute(task, r)
+	interrupted := task.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrOwnership)
 	cancel()
 	<-done
 	code, message := "", "同步完成。"
@@ -74,28 +80,44 @@ func (w *Worker) Execute(ctx context.Context, r Run) {
 			code, message = "interrupted", "执行中断或执行权已过期，已提交分段保留。"
 		}
 	}
-	// Graceful shutdown may record a failure; a crash is identified by lease expiry.
+	// Preserve unfinished work on service interruption; crashes recover after lease expiry.
 	finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
 	defer stop()
-	if err := w.Store.Finish(finish, r, code, message); err != nil && !errors.Is(err, ErrOwnership) {
+	var finishErr error
+	if interrupted {
+		finishErr = w.Store.Interrupt(finish, r)
+	} else {
+		finishErr = w.Store.Finish(finish, r, code, message)
+	}
+	if errors.Is(finishErr, ErrCancelled) {
+		finishErr = w.Store.completeCancellation(finish, r)
+	}
+	if finishErr != nil && !errors.Is(finishErr, ErrOwnership) {
 		log.Printf("index task terminal state could not be saved: %s", r.ID)
 	}
 }
 func (w *Worker) execute(ctx context.Context, r Run) error {
-	start, evidence := r.StartDate, "增量边界在提交时冻结；重取最后一个已存交易日。"
-	if start == HistoryFloor {
-		var err error
-		start, evidence, err = w.Source.Earliest(ctx, r.EndDate)
-		if err != nil {
+	start := r.EffectiveStart
+	if start == "" {
+		evidence := "增量边界在提交时冻结；重取最后一个已存交易日。"
+		start = r.StartDate
+		if start == HistoryFloor {
+			var err error
+			start, evidence, err = w.Source.Earliest(ctx, r.EndDate)
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := time.Parse("20060102", start); err != nil || start < r.StartDate || start > r.EndDate {
+			return &SourceError{"source_invalid", "数据源历史起点无效。"}
+		}
+		total := int(date(r.EndDate).Sub(date(start)).Hours()/24)/WindowDays + 1
+		if err := w.Store.Plan(ctx, r, start, evidence, total); err != nil {
 			return err
 		}
 	}
-	if _, err := time.Parse("20060102", start); err != nil || start < r.StartDate || start > r.EndDate {
-		return &SourceError{"source_invalid", "数据源历史起点无效。"}
-	}
-	total := int(date(r.EndDate).Sub(date(start)).Hours()/24)/WindowDays + 1
-	if err := w.Store.Plan(ctx, r, start, evidence, total); err != nil {
-		return err
+	if r.Checkpoint != "" {
+		start = date(r.Checkpoint).AddDate(0, 0, 1).Format("20060102")
 	}
 	for from := date(start); !from.After(date(r.EndDate)); {
 		to := from.AddDate(0, 0, WindowDays-1)

@@ -5,6 +5,7 @@ test("persistent backfill, duplicate submission, incremental and source failure"
   page,
   request,
 }) => {
+  test.setTimeout(90000);
   await page.setExtraHTTPHeaders({
     "Cf-Access-Jwt-Assertion": readFileSync(
       "/tmp/candela-browser-test-token",
@@ -41,6 +42,77 @@ test("persistent backfill, duplicate submission, incremental and source failure"
   await expect(page.getByLabel("最近同步任务").getByRole("button")).toHaveCount(
     2,
   );
+  expect(
+    (
+      await request.post("http://127.0.0.1:18082/fixture/slow", {
+        headers: { "X-Api-Key": "fixture-only" },
+      })
+    ).status(),
+  ).toBe(204);
+  await page.getByRole("button", { name: "历史回填", exact: true }).click();
+  await expect(panel.getByText("执行中", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  const cancelledURL = page.url();
+  const cancel = panel.getByRole("button", { name: "取消任务", exact: true });
+  await cancel.focus();
+  await page.keyboard.press("Enter");
+  await expect(panel.getByText("取消中", { exact: true })).toBeVisible();
+  await expect(panel.getByText("已取消", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(panel.getByRole("list", { name: "执行记录" })).toContainText(
+    "已记录取消意图",
+  );
+  await expect(cancel).toBeFocused();
+  await page.reload();
+  expect(page.url()).toBe(cancelledURL);
+  await expect(panel.getByText("已取消", { exact: true })).toBeVisible();
+  for (const width of [1440, 820, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBeTruthy();
+    await page.screenshot({
+      path: `/tmp/candela-t03-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "历史回填", exact: true }).click();
+  await expect(panel.getByText("执行中", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  const recoveredURL = page.url();
+  expect(
+    (
+      await request.post("http://127.0.0.1:18082/fixture/restart", {
+        headers: { "X-Api-Key": "fixture-only" },
+      })
+    ).status(),
+  ).toBe(204);
+  await expect(panel.getByRole("list", { name: "执行记录" })).toContainText(
+    "服务执行中断",
+    { timeout: 15000 },
+  );
+  await expect(panel.getByRole("list", { name: "执行记录" })).toContainText(
+    "已取得新的执行权",
+  );
+  await page.reload();
+  expect(page.url()).toBe(recoveredURL);
+  await expect(panel.getByRole("list", { name: "执行记录" })).toContainText(
+    "从原检查点恢复固定范围",
+  );
+  await page.screenshot({
+    path: "/tmp/candela-t03-recovery.png",
+    fullPage: true,
+  });
+  await panel.getByRole("button", { name: "取消任务", exact: true }).click();
+  await expect(panel.getByText("已取消", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
   // Trigger a controlled permission failure; the browser displays a persisted result.
   expect(
     (

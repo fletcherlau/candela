@@ -67,8 +67,35 @@ func (s *Store) Handler() http.HandlerFunc {
 			return
 		}
 		id := strings.TrimPrefix(r.URL.Path, path+"/")
+		cancelling := strings.HasSuffix(id, "/cancel")
+		if cancelling {
+			id = strings.TrimSuffix(id, "/cancel")
+		}
 		if !ValidID(id) {
 			fail(404, "任务不存在。")
+			return
+		}
+		if cancelling {
+			if r.Method != http.MethodPost {
+				w.Header().Set("Allow", "POST")
+				fail(405, "不支持此操作。")
+				return
+			}
+			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1))
+			if err != nil || len(body) != 0 {
+				fail(400, "取消操作不接受请求内容。")
+				return
+			}
+			run, err := s.Cancel(r.Context(), id)
+			if errors.Is(err, sql.ErrNoRows) {
+				fail(404, "任务不存在。")
+				return
+			}
+			if err != nil {
+				fail(503, "取消结果未确认，请查询任务后重试。")
+				return
+			}
+			send(200, map[string]any{"run": run})
 			return
 		}
 		if r.Method != http.MethodGet {

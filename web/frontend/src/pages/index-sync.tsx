@@ -10,7 +10,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+type RunEvent = {
+  kind: string;
+  at: string;
+  checkpoint: string;
+  message: string;
+};
 type Run = {
+  events?: RunEvent[];
   id: string;
   mode: "backfill" | "incremental";
   state: string;
@@ -30,11 +37,14 @@ type Run = {
 const states: Record<string, string> = {
   queued: "排队中",
   running: "执行中",
+  cancelling: "取消中",
+  cancelled: "已取消",
   succeeded: "已完成",
   failed: "失败",
 };
 const stages: Record<string, string> = {
   queued: "等待执行",
+  recovering: "等待恢复原任务",
   discovering: "确认历史覆盖范围",
   fetching: "获取并保存日线",
   finished: "执行结束",
@@ -61,6 +71,16 @@ function isRun(value: unknown): value is Run {
     (run.mode === "backfill" || run.mode === "incremental") &&
     typeof run.state === "string" &&
     Object.hasOwn(states, run.state) &&
+    (run.events === undefined ||
+      (Array.isArray(run.events) &&
+        run.events.every(
+          (event) =>
+            event &&
+            typeof event === "object" &&
+            ["kind", "at", "checkpoint", "message"].every(
+              (key) => typeof event[key] === "string",
+            ),
+        ))) &&
     [
       "stage",
       "startDate",
@@ -198,6 +218,52 @@ export function IndexSync({ onCompleted }: { onCompleted: () => void }) {
     }
   }
 
+  async function cancelRun() {
+    if (
+      !detail ||
+      !["queued", "running"].includes(detail.state) ||
+      submitLock.current
+    )
+      return;
+    const id = detail.id;
+    submitLock.current = true;
+    setSubmitting(true);
+    setError("");
+    setNotice("");
+    try {
+      const session = await read(
+        await fetch("/api/session", { cache: "no-store" }),
+      );
+      const data = await read(
+        await fetch(`/api/sync-runs/${id}/cancel`, {
+          method: "POST",
+          headers: { "X-CSRF-Token": session.csrfToken },
+        }),
+      );
+      if (!isRun(data.run))
+        throw new Error("取消结果不确定，请刷新任务列表确认。");
+      select(id);
+      setDetail(data.run);
+      setNotice(
+        data.run.state === "cancelling"
+          ? "取消请求已保存，正在确认停止。已提交数据保留。"
+          : data.run.state === "cancelled"
+            ? "任务已取消，已提交数据保留。"
+            : "任务已结束，请以当前任务状态为准。",
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `${err.message} 取消可能已被接受，请先刷新任务列表确认。`
+          : "取消结果不确定，请刷新任务列表确认。",
+      );
+    } finally {
+      submitLock.current = false;
+      setSubmitting(false);
+      setRefresh((v) => v + 1);
+    }
+  }
+
   return (
     <Card className="min-w-0 shadow-none" aria-label="中证全指同步">
       <CardHeader>
@@ -288,6 +354,15 @@ export function IndexSync({ onCompleted }: { onCompleted: () => void }) {
                 >
                   {states[detail.state] || detail.state}
                 </Badge>
+                <Button
+                  variant="outline"
+                  aria-disabled={
+                    submitting || !["queued", "running"].includes(detail.state)
+                  }
+                  onClick={() => void cancelRun()}
+                >
+                  取消任务
+                </Button>
               </div>
               <p className="break-all text-xs text-muted-foreground">
                 任务编号 {detail.id}
@@ -347,6 +422,33 @@ export function IndexSync({ onCompleted }: { onCompleted: () => void }) {
                 <p className="text-xs leading-6 text-muted-foreground">
                   {detail.historyEvidence}
                 </p>
+              )}
+              {!!detail.events?.length && (
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-sm font-medium">执行记录</h3>
+                  <ul aria-label="执行记录" className="flex flex-col gap-3">
+                    {detail.events.map((event, index) => (
+                      <li key={index} className="text-sm">
+                        <time
+                          dateTime={event.at}
+                          className="block text-xs text-muted-foreground"
+                        >
+                          {new Date(event.at).toLocaleString("zh-CN", {
+                            timeZone: "Asia/Shanghai",
+                            hour12: false,
+                          })}{" "}
+                          · 北京时间
+                        </time>
+                        <p>{event.message}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {event.checkpoint
+                            ? `当时已提交至 ${date(event.checkpoint)}`
+                            : "当时尚未提交分段"}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {detail.message && (
                 <p
