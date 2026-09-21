@@ -92,7 +92,7 @@ var migrations = []func(context.Context, *sql.Conn) error{sqlMigration(
  PRIMARY KEY(trade_date,ts_code),
  FOREIGN KEY(trade_date) REFERENCES rotation_capture_run(trade_date) ON DELETE CASCADE
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-), ensureRotationDailyMissing,
+), ensureRotationDailyMissing, etfSyncMigration,
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

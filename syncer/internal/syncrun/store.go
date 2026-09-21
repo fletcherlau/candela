@@ -9,9 +9,14 @@ import (
 	"time"
 )
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db                    *sql.DB
+	objects, runs, events string
+}
 
-func NewStore(db *sql.DB) *Store { return &Store{db: db} }
+func NewStore(db *sql.DB) *Store {
+	return &Store{db: db, objects: "index_series", runs: "sync_run", events: "sync_run_event"}
+}
 
 const columns = `id,ts_code,mode,start_date,end_date,effective_start,state,stage,processed_rows,completed_segments,total_segments,checkpoint,history_evidence,error_code,message,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%sZ'),DATE_FORMAT(updated_at,'%Y-%m-%dT%H:%i:%sZ'),owner`
 
@@ -34,13 +39,13 @@ func (s *Store) Submit(ctx context.Context, mode string, now time.Time) (Run, bo
 	}
 	defer tx.Rollback()
 	var fence int64
-	if err = tx.QueryRowContext(ctx, "SELECT fence FROM index_series WHERE ts_code=? FOR UPDATE", Code).Scan(&fence); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT fence FROM "+s.objects+" WHERE ts_code=? FOR UPDATE", Code).Scan(&fence); err != nil {
 		return Run{}, false, err
 	}
 	end, start := Cutoff(now), HistoryFloor
 	// Same action and frozen cutoff remains the same request even as its worker
 	// advances stored coverage. Do this before computing the incremental start.
-	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM sync_run WHERE ts_code=? AND mode=? AND end_date=? AND state IN ('queued','running') ORDER BY sequence LIMIT 1", Code, mode, end))
+	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM "+s.runs+" WHERE ts_code=? AND mode=? AND end_date=? AND state IN ('queued','running') ORDER BY sequence LIMIT 1", Code, mode, end))
 	if err == nil {
 		return r, true, tx.Commit()
 	}
@@ -57,11 +62,11 @@ func (s *Store) Submit(ctx context.Context, mode string, now time.Time) (Run, bo
 		return Run{}, false, err
 	}
 	id := hex.EncodeToString(buf)
-	_, err = tx.ExecContext(ctx, `INSERT INTO sync_run(id,ts_code,mode,start_date,end_date,history_evidence,created_at,updated_at) VALUES (?,?,?,?,?,'',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))`, id, Code, mode, start, end)
+	_, err = tx.ExecContext(ctx, `INSERT INTO `+s.runs+`(id,ts_code,mode,start_date,end_date,history_evidence,created_at,updated_at) VALUES (?,?,?,?,?,'',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))`, id, Code, mode, start, end)
 	if err != nil {
 		return Run{}, false, err
 	}
-	r, err = scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM sync_run WHERE id=?", id))
+	r, err = scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM "+s.runs+" WHERE id=?", id))
 	if err != nil {
 		return Run{}, false, err
 	}
@@ -73,11 +78,11 @@ func (s *Store) Get(ctx context.Context, id string) (Run, error) {
 		return Run{}, err
 	}
 	defer tx.Rollback()
-	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM sync_run WHERE id=?", id))
+	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM "+s.runs+" WHERE id=?", id))
 	if err != nil {
 		return Run{}, err
 	}
-	rows, err := tx.QueryContext(ctx, "SELECT kind,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%sZ'),checkpoint,message FROM sync_run_event WHERE run_id=? ORDER BY sequence", id)
+	rows, err := tx.QueryContext(ctx, "SELECT kind,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%sZ'),checkpoint,message FROM "+s.events+" WHERE run_id=? ORDER BY sequence", id)
 	if err != nil {
 		return Run{}, err
 	}
@@ -98,7 +103,7 @@ func (s *Store) Get(ctx context.Context, id string) (Run, error) {
 	return r, tx.Commit()
 }
 func (s *Store) List(ctx context.Context) ([]Run, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT "+columns+" FROM sync_run ORDER BY sequence DESC LIMIT 50")
+	rows, err := s.db.QueryContext(ctx, "SELECT "+columns+" FROM "+s.runs+" ORDER BY sequence DESC LIMIT 50")
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +121,9 @@ func (s *Store) List(ctx context.Context) ([]Run, error) {
 
 // Claim serializes on the object row. Expired unfinished executions re-enter
 // the queue with their frozen request and checkpoint; cancelled ones never do.
-func (s *Store) Claim(ctx context.Context) (Run, error) {
+func (s *Store) Claim(ctx context.Context) (Run, error) { return s.claimCode(ctx, Code) }
+
+func (s *Store) claimCode(ctx context.Context, objectCode string) (Run, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Run{}, err
@@ -124,13 +131,13 @@ func (s *Store) Claim(ctx context.Context) (Run, error) {
 	defer tx.Rollback()
 	var active sql.NullString
 	var fence int64
-	if err = tx.QueryRowContext(ctx, "SELECT active_run,fence FROM index_series WHERE ts_code=? FOR UPDATE", Code).Scan(&active, &fence); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT active_run,fence FROM "+s.objects+" WHERE ts_code=? FOR UPDATE", objectCode).Scan(&active, &fence); err != nil {
 		return Run{}, err
 	}
 	if active.Valid {
 		var alive bool
 		var state string
-		if err = tx.QueryRowContext(ctx, "SELECT state='running' AND lease_until>UTC_TIMESTAMP(6),state FROM sync_run WHERE id=?", active.String).Scan(&alive, &state); err != nil {
+		if err = tx.QueryRowContext(ctx, "SELECT state='running' AND lease_until>UTC_TIMESTAMP(6),state FROM "+s.runs+" WHERE id=?", active.String).Scan(&alive, &state); err != nil {
 			return Run{}, err
 		}
 		if alive {
@@ -139,17 +146,17 @@ func (s *Store) Claim(ctx context.Context) (Run, error) {
 
 		switch state {
 		case "cancelling":
-			err = markCancelled(ctx, tx, active.String, Code)
+			err = s.markCancelled(ctx, tx, active.String, objectCode)
 		case "running":
-			err = markInterrupted(ctx, tx, active.String, Code, "执行权过期，已提交分段保留，等待恢复。")
+			err = s.markInterrupted(ctx, tx, active.String, objectCode, "执行权过期，已提交分段保留，等待恢复。")
 		default:
-			err = releaseRun(ctx, tx, active.String, Code)
+			err = s.releaseRun(ctx, tx, active.String, objectCode)
 		}
 		if err != nil {
 			return Run{}, err
 		}
 	}
-	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM sync_run WHERE ts_code=? AND state='queued' ORDER BY sequence LIMIT 1 FOR UPDATE", Code))
+	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM "+s.runs+" WHERE ts_code=? AND state='queued' ORDER BY sequence LIMIT 1 FOR UPDATE", objectCode))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Run{}, commitEmpty(tx)
 	}
@@ -161,14 +168,14 @@ func (s *Store) Claim(ctx context.Context) (Run, error) {
 	if r.EffectiveStart != "" {
 		stage = "fetching"
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE index_series SET active_run=?,fence=? WHERE ts_code=?`, r.ID, fence, Code); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE `+s.objects+` SET active_run=?,fence=? WHERE ts_code=?`, r.ID, fence, objectCode); err != nil {
 		return Run{}, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE sync_run SET state='running',stage=?,owner=?,lease_until=TIMESTAMPADD(SECOND,30,UTC_TIMESTAMP(6)),updated_at=UTC_TIMESTAMP(6) WHERE id=?`, stage, fence, r.ID); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE `+s.runs+` SET state='running',stage=?,owner=?,lease_until=TIMESTAMPADD(SECOND,30,UTC_TIMESTAMP(6)),updated_at=UTC_TIMESTAMP(6) WHERE id=?`, stage, fence, r.ID); err != nil {
 		return Run{}, err
 	}
 	if r.Stage == "recovering" {
-		if err = recordEvent(ctx, tx, r.ID, "resumed", "已取得新的执行权，从原检查点恢复固定范围。"); err != nil {
+		if err = s.recordEvent(ctx, tx, r.ID, "resumed", "已取得新的执行权，从原检查点恢复固定范围。"); err != nil {
 			return Run{}, err
 		}
 	}
@@ -194,7 +201,7 @@ func (s *Store) owned(ctx context.Context, r Run, fn func(*sql.Tx) error) error 
 	defer tx.Rollback()
 	var active sql.NullString
 	var fence int64
-	if err = tx.QueryRowContext(ctx, "SELECT active_run,fence FROM index_series WHERE ts_code=? FOR UPDATE", r.Code).Scan(&active, &fence); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT active_run,fence FROM "+s.objects+" WHERE ts_code=? FOR UPDATE", r.Code).Scan(&active, &fence); err != nil {
 		return err
 	}
 	if !active.Valid || active.String != r.ID || fence != r.Owner {
@@ -203,7 +210,7 @@ func (s *Store) owned(ctx context.Context, r Run, fn func(*sql.Tx) error) error 
 	var alive bool
 	var deadline sql.NullString
 	var state string
-	if err = tx.QueryRowContext(ctx, "SELECT state='running' AND owner=? AND lease_until>UTC_TIMESTAMP(6),DATE_FORMAT(lease_until,'%Y-%m-%d %H:%i:%s.%f'),state FROM sync_run WHERE id=? FOR UPDATE", r.Owner, r.ID).Scan(&alive, &deadline, &state); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT state='running' AND owner=? AND lease_until>UTC_TIMESTAMP(6),DATE_FORMAT(lease_until,'%Y-%m-%d %H:%i:%s.%f'),state FROM "+s.runs+" WHERE id=? FOR UPDATE", r.Owner, r.ID).Scan(&alive, &deadline, &state); err != nil {
 		return err
 	}
 	if state == "cancelling" {
@@ -228,20 +235,20 @@ func (s *Store) owned(ctx context.Context, r Run, fn func(*sql.Tx) error) error 
 }
 func (s *Store) Heartbeat(ctx context.Context, r Run) error {
 	return s.owned(ctx, r, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, "UPDATE sync_run SET lease_until=TIMESTAMPADD(SECOND,30,UTC_TIMESTAMP(6)) WHERE id=?", r.ID)
+		_, err := tx.ExecContext(ctx, "UPDATE "+s.runs+" SET lease_until=TIMESTAMPADD(SECOND,30,UTC_TIMESTAMP(6)) WHERE id=?", r.ID)
 		return err
 	})
 }
 func (s *Store) Plan(ctx context.Context, r Run, start, evidence string, total int) error {
 	return s.owned(ctx, r, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE sync_run SET stage='fetching',effective_start=?,history_evidence=?,total_segments=?,updated_at=UTC_TIMESTAMP(6) WHERE id=?`, start, evidence, total, r.ID)
+		_, err := tx.ExecContext(ctx, `UPDATE `+s.runs+` SET stage='fetching',effective_start=?,history_evidence=?,total_segments=?,updated_at=UTC_TIMESTAMP(6) WHERE id=?`, start, evidence, total, r.ID)
 		return err
 	})
 }
 func (s *Store) CommitWindow(ctx context.Context, r Run, from, to string, bars []Bar) error {
 	return s.owned(ctx, r, func(tx *sql.Tx) error {
 		var checkpoint, effective string
-		if err := tx.QueryRowContext(ctx, "SELECT checkpoint,effective_start FROM sync_run WHERE id=?", r.ID).Scan(&checkpoint, &effective); err != nil {
+		if err := tx.QueryRowContext(ctx, "SELECT checkpoint,effective_start FROM "+s.runs+" WHERE id=?", r.ID).Scan(&checkpoint, &effective); err != nil {
 			return err
 		}
 		next := effective
@@ -260,7 +267,7 @@ func (s *Store) CommitWindow(ctx context.Context, r Run, from, to string, bars [
 				return err
 			}
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE sync_run SET checkpoint=?,processed_rows=processed_rows+?,completed_segments=completed_segments+1,updated_at=UTC_TIMESTAMP(6) WHERE id=?`, to, len(bars), r.ID)
+		_, err := tx.ExecContext(ctx, `UPDATE `+s.runs+` SET checkpoint=?,processed_rows=processed_rows+?,completed_segments=completed_segments+1,updated_at=UTC_TIMESTAMP(6) WHERE id=?`, to, len(bars), r.ID)
 		return err
 	})
 }
@@ -269,7 +276,7 @@ func (s *Store) Finish(ctx context.Context, r Run, code, message string) error {
 		state := "failed"
 		if code == "" {
 			var complete bool
-			if err := tx.QueryRowContext(ctx, "SELECT checkpoint=end_date AND completed_segments=total_segments AND total_segments>0 FROM sync_run WHERE id=?", r.ID).Scan(&complete); err != nil {
+			if err := tx.QueryRowContext(ctx, "SELECT checkpoint=end_date AND completed_segments=total_segments AND total_segments>0 FROM "+s.runs+" WHERE id=?", r.ID).Scan(&complete); err != nil {
 				return err
 			}
 			if !complete {
@@ -277,12 +284,17 @@ func (s *Store) Finish(ctx context.Context, r Run, code, message string) error {
 			}
 			state = "succeeded"
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE sync_run SET state=?,stage='finished',error_code=?,message=?,lease_until=NULL,updated_at=UTC_TIMESTAMP(6) WHERE id=?`, state, code, message, r.ID)
+		_, err := tx.ExecContext(ctx, `UPDATE `+s.runs+` SET state=?,stage='finished',error_code=?,message=?,lease_until=NULL,updated_at=UTC_TIMESTAMP(6) WHERE id=?`, state, code, message, r.ID)
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, "UPDATE index_series SET active_run=NULL WHERE ts_code=?", r.Code)
-		return err
+		if _, err = tx.ExecContext(ctx, "UPDATE "+s.objects+" SET active_run=NULL WHERE ts_code=?", r.Code); err != nil {
+			return err
+		}
+		if s.runs == "etf_sync_run" {
+			return updateETFPublication(ctx, tx, r.ID, r.Code)
+		}
+		return nil
 	})
 }
 
@@ -294,27 +306,31 @@ func (s *Store) Cancel(ctx context.Context, id string) (Run, error) {
 		return Run{}, err
 	}
 	defer tx.Rollback()
-	var fence int64
-	if err = tx.QueryRowContext(ctx, "SELECT fence FROM index_series WHERE ts_code=? FOR UPDATE", Code).Scan(&fence); err != nil {
+	var objectCode string
+	if err = tx.QueryRowContext(ctx, "SELECT ts_code FROM "+s.runs+" WHERE id=?", id).Scan(&objectCode); err != nil {
 		return Run{}, err
 	}
-	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM sync_run WHERE id=? FOR UPDATE", id))
+	var fence int64
+	if err = tx.QueryRowContext(ctx, "SELECT fence FROM "+s.objects+" WHERE ts_code=? FOR UPDATE", objectCode).Scan(&fence); err != nil {
+		return Run{}, err
+	}
+	r, err := scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM "+s.runs+" WHERE id=? FOR UPDATE", id))
 	if err != nil {
 		return Run{}, err
 	}
 
 	switch r.State {
 	case "queued":
-		err = markCancelled(ctx, tx, id, r.Code)
+		err = s.markCancelled(ctx, tx, id, r.Code)
 	case "running":
-		if _, err = tx.ExecContext(ctx, "UPDATE sync_run SET state='cancelling',message='正在取消；不会提交新的分段。',updated_at=UTC_TIMESTAMP(6) WHERE id=?", id); err == nil {
-			err = recordEvent(ctx, tx, id, "cancel_requested", "已记录取消意图，停止提交新分段。")
+		if _, err = tx.ExecContext(ctx, "UPDATE "+s.runs+" SET state='cancelling',message='正在取消；不会提交新的分段。',updated_at=UTC_TIMESTAMP(6) WHERE id=?", id); err == nil {
+			err = s.recordEvent(ctx, tx, id, "cancel_requested", "已记录取消意图，停止提交新分段。")
 		}
 	}
 	if err != nil {
 		return Run{}, err
 	}
-	r, err = scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM sync_run WHERE id=?", id))
+	r, err = scan(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM "+s.runs+" WHERE id=?", id))
 	if err != nil {
 		return Run{}, err
 	}
@@ -331,7 +347,7 @@ func (s *Store) completeCancellation(ctx context.Context, r Run) error {
 	defer tx.Rollback()
 	var active sql.NullString
 	var fence int64
-	if err = tx.QueryRowContext(ctx, "SELECT active_run,fence FROM index_series WHERE ts_code=? FOR UPDATE", r.Code).Scan(&active, &fence); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT active_run,fence FROM "+s.objects+" WHERE ts_code=? FOR UPDATE", r.Code).Scan(&active, &fence); err != nil {
 		return err
 	}
 	if !active.Valid || active.String != r.ID || fence != r.Owner {
@@ -339,21 +355,21 @@ func (s *Store) completeCancellation(ctx context.Context, r Run) error {
 	}
 
 	var cancelling bool
-	if err = tx.QueryRowContext(ctx, "SELECT state='cancelling' AND owner=? FROM sync_run WHERE id=? FOR UPDATE", r.Owner, r.ID).Scan(&cancelling); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT state='cancelling' AND owner=? FROM "+s.runs+" WHERE id=? FOR UPDATE", r.Owner, r.ID).Scan(&cancelling); err != nil {
 		return err
 	}
 	if !cancelling {
 		return ErrOwnership
 	}
-	if err = markCancelled(ctx, tx, r.ID, r.Code); err != nil {
+	if err = s.markCancelled(ctx, tx, r.ID, r.Code); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 // Events share the state transition transaction and capture its checkpoint.
-func recordEvent(ctx context.Context, tx *sql.Tx, id, kind, message string) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO sync_run_event(run_id,kind,checkpoint,message,created_at) SELECT id,?,checkpoint,?,UTC_TIMESTAMP(6) FROM sync_run WHERE id=?`, kind, message, id)
+func (s *Store) recordEvent(ctx context.Context, tx *sql.Tx, id, kind, message string) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO `+s.events+`(run_id,kind,checkpoint,message,created_at) SELECT id,?,checkpoint,?,UTC_TIMESTAMP(6) FROM `+s.runs+` WHERE id=?`, kind, message, id)
 	return err
 }
 
@@ -362,31 +378,37 @@ func recordEvent(ctx context.Context, tx *sql.Tx, id, kind, message string) erro
 func (s *Store) Interrupt(ctx context.Context, r Run) error {
 
 	return s.owned(ctx, r, func(tx *sql.Tx) error {
-		return markInterrupted(ctx, tx, r.ID, r.Code, "服务执行中断，已提交分段保留，等待恢复。")
+		return s.markInterrupted(ctx, tx, r.ID, r.Code, "服务执行中断，已提交分段保留，等待恢复。")
 	})
 }
 
 // These transitions require the caller to hold the object lock and establish
 // the eligible state/ownership. Graceful completion and recovery share them.
-func markCancelled(ctx context.Context, tx *sql.Tx, id, code string) error {
-	if _, err := tx.ExecContext(ctx, `UPDATE sync_run SET state='cancelled',stage='finished',lease_until=NULL,message='任务已取消；已提交数据保留。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, id); err != nil {
+func (s *Store) markCancelled(ctx context.Context, tx *sql.Tx, id, code string) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE `+s.runs+` SET state='cancelled',stage='finished',lease_until=NULL,message='任务已取消；已提交数据保留。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, id); err != nil {
 		return err
 	}
-	if err := recordEvent(ctx, tx, id, "cancelled", "已确认取消，已提交数据保留。"); err != nil {
+	if err := s.recordEvent(ctx, tx, id, "cancelled", "已确认取消，已提交数据保留。"); err != nil {
 		return err
 	}
-	return releaseRun(ctx, tx, id, code)
+	if err := s.releaseRun(ctx, tx, id, code); err != nil {
+		return err
+	}
+	if s.runs == "etf_sync_run" {
+		return updateETFPublication(ctx, tx, id, code)
+	}
+	return nil
 }
-func markInterrupted(ctx context.Context, tx *sql.Tx, id, code, reason string) error {
-	if _, err := tx.ExecContext(ctx, `UPDATE sync_run SET state='queued',stage='recovering',lease_until=NULL,error_code='',message='执行中断，等待从原检查点恢复。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, id); err != nil {
+func (s *Store) markInterrupted(ctx context.Context, tx *sql.Tx, id, code, reason string) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE `+s.runs+` SET state='queued',stage='recovering',lease_until=NULL,error_code='',message='执行中断，等待从原检查点恢复。',updated_at=UTC_TIMESTAMP(6) WHERE id=?`, id); err != nil {
 		return err
 	}
-	if err := recordEvent(ctx, tx, id, "interrupted", reason); err != nil {
+	if err := s.recordEvent(ctx, tx, id, "interrupted", reason); err != nil {
 		return err
 	}
-	return releaseRun(ctx, tx, id, code)
+	return s.releaseRun(ctx, tx, id, code)
 }
-func releaseRun(ctx context.Context, tx *sql.Tx, id, code string) error {
-	_, err := tx.ExecContext(ctx, "UPDATE index_series SET active_run=NULL WHERE ts_code=? AND active_run=?", code, id)
+func (s *Store) releaseRun(ctx context.Context, tx *sql.Tx, id, code string) error {
+	_, err := tx.ExecContext(ctx, "UPDATE "+s.objects+" SET active_run=NULL WHERE ts_code=? AND active_run=?", code, id)
 	return err
 }

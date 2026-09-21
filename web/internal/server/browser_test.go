@@ -117,6 +117,15 @@ func TestBrowserHarness(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]any{"status": "ready", "message": "", "updatedAt": "2026-09-01T00:00:00Z", "result": map[string]any{"version": "fixture", "start": rows[0]["date"], "end": rows[len(rows)-1]["date"], "costBps": 10, "codes": codes, "names": []string{"红利 ETF", "黄金 ETF", "创业板 ETF", "纳指 ETF"}, "days": rows}})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/data/etf-syncs") {
+			if os.Getenv("CANDELA_ETF_BROWSER_TEST") == "1" {
+				target, _ := url.Parse("http://127.0.0.1:18089")
+				httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+			} else {
+				w.Write([]byte(`{"batches":[]}`))
+			}
+			return
+		}
 		if r.URL.Path == "/api/v1/data/sync-runs" {
 			w.Write([]byte(`{"runs":[]}`))
 			return

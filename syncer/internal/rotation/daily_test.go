@@ -35,10 +35,16 @@ func dailyDatabase(t *testing.T) *sql.DB {
 	if err = schema.Ensure(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"rotation_capture_run", "rotation_daily", "rotation_coverage", "rotation_calendar", "etf_daily", "etf_adj_factor"} {
+	if _, err = db.Exec("UPDATE etf_sync_object SET active_run=NULL"); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"etf_sync_batch", "etf_sync_run", "rotation_capture_run", "rotation_daily", "rotation_coverage", "rotation_calendar", "etf_daily", "etf_adj_factor"} {
 		if _, err = db.Exec("DELETE FROM " + table); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err = db.Exec("UPDATE rotation_result SET status='pending',message='',payload=NULL,revision=revision+1 WHERE id=1"); err != nil {
+		t.Fatal(err)
 	}
 	return db
 }

@@ -37,7 +37,9 @@ func (w *Worker) Serve(ctx context.Context) {
 		}
 	}
 }
-func (w *Worker) Execute(ctx context.Context, r Run) {
+func (w *Worker) Execute(ctx context.Context, r Run) { w.executeWith(ctx, r, w.execute) }
+
+func (w *Worker) executeWith(ctx context.Context, r Run, execute func(context.Context, Run) error) {
 	task, cancel := context.WithCancel(ctx)
 	defer cancel()
 	done := make(chan struct{})
@@ -65,7 +67,7 @@ func (w *Worker) Execute(ctx context.Context, r Run) {
 			}
 		}
 	}()
-	err := w.execute(task, r)
+	err := execute(task, r)
 	interrupted := task.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrOwnership)
 	cancel()
 	<-done

@@ -142,6 +142,18 @@ func (s *Service) Refresh(ctx context.Context) error {
 	if err = conn.QueryRowContext(ctx, "SELECT status,revision FROM rotation_result WHERE id=1").Scan(&status, &rev); err != nil {
 		return err
 	}
+	block, err := etfPublicationBlock(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if block != "" {
+		message := "ETF 同步执行中，保留上一套完整结果"
+		if block == "failed" {
+			message = "ETF 同步未完成，等待恢复；已发布结果保留"
+		}
+		_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status=?,message=? WHERE id=1 AND revision=?", block, message, rev)
+		return err
+	}
 	if status == "syncing" { // The named lock was released by an interrupted synchronizer.
 		_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status='failed',message='上次行情同步中断，等待重新同步；旧结果保留' WHERE id=1")
 		return err
