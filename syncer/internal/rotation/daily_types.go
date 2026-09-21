@@ -30,14 +30,46 @@ type DailyResult struct {
 	Cards          []DailyCard `json:"cards"`
 }
 
+type DailyStage struct {
+	Status    string         `json:"status"`
+	Available int            `json:"available"`
+	Message   string         `json:"message"`
+	UpdatedAt string         `json:"updatedAt"`
+	Missing   []DailyMissing `json:"missing"`
+}
+type DailyMissing struct {
+	Code   string `json:"code"`
+	Reason string `json:"reason"`
+}
+type DailyProgress struct {
+	TradeDate string     `json:"tradeDate"`
+	Reference DailyStage `json:"reference"`
+	Close     DailyStage `json:"close"`
+}
+type PriceSlippage struct {
+	Code   string   `json:"code"`
+	Bps    *float64 `json:"bps"`
+	Reason string   `json:"reason"`
+}
 type DailyView struct {
-	TradeDate       string       `json:"tradeDate"`
-	Status          string       `json:"status"`
-	Message         string       `json:"message"`
-	Available       int          `json:"available"`
-	Close           *DailyResult `json:"close"`
-	Reference       *DailyResult `json:"reference"`
-	ReferenceStatus string       `json:"referenceStatus"`
+	RequestedDate      string          `json:"requestedDate"`
+	CurrentDate        string          `json:"currentDate"`
+	CurrentTradingDate string          `json:"currentTradingDate"`
+	SelectionMode      string          `json:"selectionMode"`
+	Fallback           bool            `json:"fallback"`
+	FallbackReason     string          `json:"fallbackReason"`
+	CalendarStatus     string          `json:"calendarStatus"`
+	ReferenceState     DailyStage      `json:"referenceState"`
+	CloseState         DailyStage      `json:"closeState"`
+	Pending            *DailyProgress  `json:"pending,omitempty"`
+	PriceSlippage      []PriceSlippage `json:"priceSlippage"`
+	TradeDate          string          `json:"tradeDate"`
+	Status             string          `json:"status"`
+	Message            string          `json:"message"`
+	Available          int             `json:"available"`
+	Close              *DailyResult    `json:"close"`
+	Reference          *DailyResult    `json:"reference"`
+	ReferenceStatus    string          `json:"referenceStatus"`
 }
 
 func (s *Service) now() time.Time {

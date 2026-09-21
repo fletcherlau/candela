@@ -2,6 +2,7 @@ package rotation
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"syncer/internal/core"
@@ -11,43 +12,8 @@ import (
 )
 
 func TestReferenceHTTPPublishesFrozenMetricsOnce(t *testing.T) {
-	db := dailyDatabase(t)
-	ctx := context.Background()
+	db, svc, source := seedReferenceScenario(t, "20250103")
 	target, _ := captureTarget("20250103")
-	source := sourceAt("20250103")
-	st := store.NewMySQLStore(db)
-	for i, code := range core.RotationCodes {
-		p := float64(100 + i)
-		var bars []core.Bar
-		for d := day("20241101"); !d.After(day("20250102")); d = d.AddDate(0, 0, 1) {
-			if d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
-				continue
-			}
-			bars = append(bars, core.Bar{TsCode: code, TradeDate: d.Format("20060102"), Open: p, High: p, Low: p, Close: p})
-		}
-		if _, err := st.UpsertDaily(ctx, bars); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := st.UpsertAdjFactors(ctx, []core.AdjFactor{{TsCode: code, TradeDate: "20241031", AdjFactor: 1}}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.Exec("INSERT INTO rotation_coverage VALUES (?,?)", code, "20250102"); err != nil {
-			t.Fatal(err)
-		}
-		q := source.quotes[code]
-		q.Open = p
-		q.High = p
-		q.Low = p
-		q.Latest = p
-		source.quotes[code] = q
-	}
-	for d := day("20241101"); !d.After(day("20250103")); d = d.AddDate(0, 0, 1) {
-		open := d.Weekday() != time.Saturday && d.Weekday() != time.Sunday
-		if _, err := db.Exec("INSERT INTO rotation_calendar VALUES (?,?)", d.Format("20060102"), open); err != nil {
-			t.Fatal(err)
-		}
-	}
-	svc := &Service{DB: db, Realtime: source, QuantileWindow: 5, Now: func() time.Time { return target.Add(3 * time.Second) }}
 	api := captureAPI(t, svc)
 	captureHTTP(t, "POST", api, `{"tradeDate":"20250103"}`, 202, nil)
 	startCaptureWorker(t, svc)
@@ -106,4 +72,47 @@ func startReferenceWorker(t *testing.T, s *Service) {
 			t.Error("reference worker did not stop")
 		}
 	})
+}
+
+func seedReferenceScenario(t *testing.T, date string) (*sql.DB, *Service, *captureSource) {
+	t.Helper()
+	db := dailyDatabase(t)
+	ctx := context.Background()
+	target, _ := captureTarget(date)
+	source := sourceAt(date)
+	st := store.NewMySQLStore(db)
+	for i, code := range core.RotationCodes {
+		p := float64(100 + i)
+		var bars []core.Bar
+		for d := target.AddDate(0, -2, 0); !d.After(target.AddDate(0, 0, -1)); d = d.AddDate(0, 0, 1) {
+			if d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
+				continue
+			}
+			bars = append(bars, core.Bar{TsCode: code, TradeDate: d.Format("20060102"), Open: p, High: p, Low: p, Close: p})
+		}
+		if _, err := st.UpsertDaily(ctx, bars); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.UpsertAdjFactors(ctx, []core.AdjFactor{{TsCode: code, TradeDate: target.AddDate(0, -2, -1).Format("20060102"), AdjFactor: 1}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec("INSERT INTO rotation_coverage VALUES (?,?)", code, target.AddDate(0, 0, -1).Format("20060102")); err != nil {
+			t.Fatal(err)
+		}
+		q := source.quotes[code]
+		q.Open = p
+		q.High = p
+		q.Low = p
+		q.Latest = p
+		source.quotes[code] = q
+	}
+	for d := target.AddDate(0, -2, 0); !d.After(target); d = d.AddDate(0, 0, 1) {
+		open := d.Weekday() != time.Saturday && d.Weekday() != time.Sunday
+		if _, err := db.Exec("INSERT INTO rotation_calendar VALUES (?,?)", d.Format("20060102"), open); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := &Service{DB: db, Calendar: fixtureCalendar{}, Realtime: source, QuantileWindow: 5, Now: func() time.Time { return target.Add(3 * time.Second) }}
+
+	return db, svc, source
 }

@@ -10,6 +10,12 @@ import (
 // Official daily data is eligible only after that Shanghai trading day's close.
 func (s *Service) RefreshDaily(ctx context.Context) error {
 	now := s.now().In(time.FixedZone("Asia/Shanghai", 8*3600))
+	// Cache today's authoritative calendar before the 14:45 external trigger.
+	// This existing publisher is the maintenance path; reads remain source-free.
+	today := now.Format("20060102")
+	if err := s.ensureCalendar(ctx, today, today); err != nil {
+		return err
+	}
 	if now.Hour() < 15 {
 		now = now.AddDate(0, 0, -1)
 	}
