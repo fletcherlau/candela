@@ -8,6 +8,7 @@ export default defineConfig({
     "rotation-range.spec.ts",
     "rotation-capture.spec.ts",
     "rotation-reference.spec.ts",
+    "rotation-history.spec.ts",
   ],
   use: { baseURL: "http://127.0.0.1:18081", headless: true },
   webServer: [

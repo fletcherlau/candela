@@ -2,7 +2,12 @@ import { finite } from "@/lib/rotation";
 export const dailyCodes = ["510880.SH", "518880.SH", "159915.SZ", "513100.SH"];
 export const dailyNames = ["红利 ETF", "黄金 ETF", "创业板 ETF", "纳指 ETF"];
 export type Metric =
-  "price" | "score" | "rank" | "volatility" | "quantile" | "weight";
+  | "price"
+  | "score"
+  | "rank"
+  | "volatility"
+  | "quantile"
+  | "weight";
 export type DailyCard = {
   code: string;
   name: string;
@@ -154,4 +159,39 @@ export function sourceTime(value?: string) {
         hourCycle: "h23",
       }).format(new Date(value))
     : "—";
+}
+
+export type DailyDates = {
+  status: string;
+  currentDate: string;
+  earliestDate: string;
+  latestDate: string;
+  nextBefore: string;
+  dates: { tradeDate: string; reference: DailyStage; close: DailyStage }[];
+};
+export function isDailyDates(value: unknown): value is DailyDates {
+  if (
+    !record(value) ||
+    value.status !== "ready" ||
+    !["currentDate", "earliestDate", "latestDate", "nextBefore"].every((key) =>
+      date(value[key]),
+    ) ||
+    !Array.isArray(value.dates) ||
+    value.dates.length > 100
+  )
+    return false;
+  return (
+    value.dates.every(
+      (item, i, all) =>
+        record(item) &&
+        typeof item.tradeDate === "string" &&
+        /^\d{8}$/.test(item.tradeDate) &&
+        item.tradeDate <= String(value.currentDate) &&
+        (i === 0 || item.tradeDate < all[i - 1].tradeDate) &&
+        stage(item.reference) &&
+        stage(item.close),
+    ) &&
+    (value.nextBefore === "" ||
+      value.nextBefore === value.dates.at(-1)?.tradeDate)
+  );
 }

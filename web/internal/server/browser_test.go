@@ -76,7 +76,7 @@ func TestBrowserHarness(t *testing.T) {
 			}
 			return
 		}
-		if r.URL.Path == "/api/v1/rotation/daily" {
+		if r.URL.Path == "/api/v1/rotation/daily" || r.URL.Path == "/api/v1/rotation/daily/dates" {
 			if os.Getenv("CANDELA_DAILY_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
 				address := "http://127.0.0.1:18084"
 				if os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
@@ -85,6 +85,10 @@ func TestBrowserHarness(t *testing.T) {
 				target, _ := url.Parse(address)
 				httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 			} else {
+				if r.URL.Path == "/api/v1/rotation/daily/dates" {
+					w.Write([]byte(`{"status":"ready","currentDate":"20250103","earliestDate":"","latestDate":"","dates":[],"nextBefore":""}`))
+					return
+				}
 				stage := map[string]any{"status": "unavailable", "available": 0, "message": "浏览器测试未接入每日数据", "updatedAt": "", "missing": []any{}}
 				slips := []map[string]any{}
 				for _, code := range []string{"510880.SH", "518880.SH", "159915.SZ", "513100.SH"} {

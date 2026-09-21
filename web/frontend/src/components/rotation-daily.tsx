@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { RotationDailyHistory } from "@/components/rotation-daily-history";
 import { RefreshCw } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +101,7 @@ function Stage({ label, state }: { label: string; state: DailyStage }) {
         原始数据 {state.available}/4
       </p>
       <p>{state.message}</p>
+      {state.updatedAt && <p>状态更新：{publishedAt(state.updatedAt)}</p>}
       {state.missing.length > 0 && (
         <ul>
           {state.missing.map((item) => (
@@ -123,6 +125,7 @@ function Slippage({ value }: { value: DailyView["priceSlippage"][number] }) {
   );
 }
 export function RotationDaily() {
+  const [selectedDate, setSelectedDate] = useState("");
   const [view, setView] = useState<DailyView | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -137,16 +140,25 @@ export function RotationDaily() {
     );
     setBusy(true);
     try {
-      const response = await fetch("/api/rotation/daily", {
-        signal: controller.signal,
-        cache: "no-store",
-      });
+      const response = await fetch(
+        `/api/rotation/daily${selectedDate ? `?tradeDate=${selectedDate}` : ""}`,
+        {
+          signal: controller.signal,
+          cache: "no-store",
+        },
+      );
       if (response.status === 401 || response.status === 403)
         throw new Error("登录已过期或无权访问，请重新登录后读取每日数据。");
       if (!response.ok)
         throw new Error("暂时无法读取每日数据，请稍后重新读取。");
       const data: unknown = await response.json();
-      if (!isDailyView(data))
+      if (
+        !isDailyView(data) ||
+        (selectedDate &&
+          (data.tradeDate !== selectedDate ||
+            data.requestedDate !== selectedDate ||
+            data.selectionMode !== "manual"))
+      )
         throw new Error("每日数据返回不完整，请稍后重新读取。");
       if (!controller.signal.aborted && request.current === controller) {
         setView(data);
@@ -169,7 +181,7 @@ export function RotationDaily() {
       window.clearTimeout(timeout);
       if (request.current === controller) setBusy(false);
     }
-  }, []);
+  }, [selectedDate]);
   useEffect(() => {
     void load();
     const refresh = () => {
@@ -215,10 +227,27 @@ export function RotationDaily() {
           </Button>
         </div>
       </div>
+      <RotationDailyHistory
+        selectedDate={selectedDate}
+        onSelect={(date) => {
+          if (date === selectedDate) {
+            void load();
+            return;
+          }
+          request.current?.abort();
+          request.current = null;
+          setView(null);
+          setError("");
+          setBusy(true);
+          setSelectedDate(date);
+        }}
+      />
       <p className="rotation-daily-context">
         {view?.tradeDate
           ? `${fmt(view.tradeDate)} · ${view.reference && view.close ? "14:45／收盘" : view.reference ? "14:45 固定参考" : view.close ? "收盘" : "尚无已发布结果"}`
-          : "等待确认可展示的交易日"}
+          : selectedDate
+            ? `${fmt(selectedDate)} · 等待读取该日数据`
+            : "等待确认可展示的交易日"}
         。四标的计算依据，非实际账户持仓。
       </p>
       {error && (
