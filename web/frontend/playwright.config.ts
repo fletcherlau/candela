@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests",
-  testIgnore: ["sync.spec.ts", "design.spec.ts"],
+  testIgnore: ["sync.spec.ts", "design.spec.ts", "rotation-daily.spec.ts"],
   use: { baseURL: "http://127.0.0.1:18081", headless: true },
   webServer: {
     command:

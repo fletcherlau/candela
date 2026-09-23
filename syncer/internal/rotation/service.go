@@ -15,8 +15,10 @@ type CalendarSource interface {
 	Calendar(context.Context, string, string) (map[string]bool, error)
 }
 type Service struct {
-	DB       *sql.DB
-	Calendar CalendarSource
+	DB             *sql.DB
+	Calendar       CalendarSource
+	Now            func() time.Time
+	QuantileWindow int
 }
 type View struct {
 	Status    string               `json:"status"`
@@ -119,6 +121,7 @@ func (s *Service) Serve(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
+		s.RefreshDaily(ctx)
 		s.Refresh(ctx)
 		select {
 		case <-ctx.Done():

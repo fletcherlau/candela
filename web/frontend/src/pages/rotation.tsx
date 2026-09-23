@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { EChartsCoreOption } from "echarts/core";
 import { ResearchTheme } from "@/components/research-theme";
+import { RotationDaily } from "@/components/rotation-daily";
 import { RotationChart } from "@/components/rotation-chart";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -398,11 +399,11 @@ export function Rotation() {
           <div className="research-intro">
             <div className="report-cover">
               <p className="research-eyebrow">
-                STRATEGY RESEARCH <span>策略研究 · 历史回测</span>
+                STRATEGY RESEARCH <span>每日数据 · 历史回测</span>
               </p>
               <h1>四标的轮动</h1>
               <p className="research-intro-copy">
-                在红利、黄金、创业板与纳指之间，以动量比较选择标的，以波动率调节仓位。用历史数据观察收益，也看清承担的风险。
+                查看红利、黄金、创业板与纳指的每日计算依据，核对数据，并观察历史模型表现。
               </p>
               <div className="report-byline">
                 <span>Candela 研究</span>
@@ -425,8 +426,8 @@ export function Rotation() {
             </div>
             <nav className="report-contents" aria-label="报告目录">
               <p>本页内容</p>
-              <a href="#data-status">
-                <span>01</span>数据与模型状态
+              <a href="#daily-data">
+                <span>01</span>每日数据
               </a>
               <a href="#performance">
                 <span>02</span>收益与风险
@@ -439,6 +440,7 @@ export function Rotation() {
               </a>
             </nav>
           </div>
+          <RotationDaily />
           <section
             id="data-status"
             className="rotation-status"
@@ -852,9 +854,9 @@ export function Rotation() {
                     ))}
                     <h3>数据边界</h3>
                     <p>
-                      每日排名与变化原因尚未接入。当前持仓的变化不能用来推断排名或交易原因。
+                      每日指标以页面上方已发布数据为准。模型持仓变化不能用来推断实际成交或变化原因。
                     </p>
-                    <p>本页为净值回测，暂不提供定投资金视图。</p>
+                    <p>历史模型结果与实际账户分别理解，未知字段保持为空。</p>
                   </aside>
                 </div>
               </section>
@@ -935,10 +937,10 @@ export function Rotation() {
               <summary>尚未提供的数据</summary>
               <div className="rotation-method">
                 <p>
-                  每日排名、评分与变化原因需要已发布信号及版本、截止日，目前不由历史回测接口提供。
+                  14:45 固定参考尚未接入；每日收盘结果独立发布，缺失字段及原因见每日数据区。
                 </p>
                 <p>
-                  定投资金视图需要投入计划、现金流与相应费用、统计口径；本页不混用旧定投实验。
+                  本页不推测指标变化原因，不提供实际账户数据或定投模拟。
                 </p>
               </div>
             </details>
