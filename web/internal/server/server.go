@@ -99,7 +99,7 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/etf-rotation/dca-dashboard/":
 		http.Redirect(w, r, "/etf-rotation/dca-dashboard/index.html", http.StatusFound)
-	case "/api/rotation/daily":
+	case "/api/rotation/daily", "/api/rotation/daily/dates":
 		a.rotationDaily(w, r)
 	case "/api/rotation/backtest", "/api/rotation/backtest/range":
 		a.rotationBacktest(w, r)

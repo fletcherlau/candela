@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -15,19 +16,31 @@ func (a *application) rotationDaily(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "查询参数无效", 400)
 		return
 	}
+	index := r.URL.Path == "/api/rotation/daily/dates"
 	for key, values := range query {
-		if key != "tradeDate" || len(values) != 1 {
+		allowed := key == "tradeDate" && !index || index && (key == "before" || key == "limit")
+		if !allowed || len(values) != 1 || values[0] == "" {
 			http.Error(w, "查询参数无效", 400)
 			return
 		}
-		if _, err := time.Parse("20060102", values[0]); err != nil {
+		if key == "limit" {
+			n, err := strconv.Atoi(values[0])
+			if err != nil || n < 1 || n > 100 {
+				http.Error(w, "分页数量无效", 400)
+				return
+			}
+		} else if _, err := time.Parse("20060102", values[0]); err != nil {
 			http.Error(w, "交易日无效", 400)
 			return
 		}
 	}
+	path := "/api/v1/rotation/daily"
+	if index {
+		path += "/dates"
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.cfg.SyncerURL+"/api/v1/rotation/daily?"+query.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.cfg.SyncerURL+path+"?"+query.Encode(), nil)
 	if err != nil {
 		http.Error(w, "每日数据暂不可用", 502)
 		return

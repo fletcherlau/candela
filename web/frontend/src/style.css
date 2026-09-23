@@ -644,3 +644,8 @@ input[type="checkbox"] {
 .rotation-daily-comparison .rotation-daily-unknown { min-width: 0; }
 .rotation-daily-slippage { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; font-size: 14px; margin: 16px 0 8px; }
 @media (max-width: 600px) { .rotation-daily-stages { grid-template-columns: minmax(0,1fr); } }
+
+.rotation-daily-history { margin-block: 16px; }
+.rotation-daily-date-list { display: grid; gap: 8px; padding: 0; list-style: none; }
+.rotation-daily-date-list button { width: 100%; height: auto; min-height: 44px; white-space: normal; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding-block: 10px; }
+.rotation-daily-date-states { font-size: 12px; }

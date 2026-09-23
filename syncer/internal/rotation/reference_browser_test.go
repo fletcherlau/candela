@@ -82,6 +82,14 @@ func TestReferenceBrowserHarness(t *testing.T) {
 			switch phase {
 			case "before":
 				err = reset()
+			case "empty":
+				if stop != nil {
+					stop()
+					stop = nil
+				}
+				if _, err = db.Exec("DELETE FROM rotation_capture_run"); err == nil {
+					_, err = db.Exec("DELETE FROM rotation_daily")
+				}
 			case "reference":
 				clock.Store(target.Add(3 * time.Second).UnixNano())
 			case "missed":
