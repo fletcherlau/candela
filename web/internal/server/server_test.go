@@ -87,6 +87,32 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			io.WriteString(w, `{"status":"ready","result":null}`)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/data/etf-syncs") {
+			syncCalls.Add(1)
+			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" || r.Header.Get("X-CSRF-Token") != "" {
+				t.Error("ETF credentials crossed boundary")
+			}
+			if syncFailure.Load() {
+				http.Error(w, "server-only-secret", 500)
+				return
+			}
+			if r.Method == "POST" {
+				body, _ := io.ReadAll(r.Body)
+				if r.URL.Path == "/api/v1/data/etf-syncs" && string(body) != `{"codes":["510880.SH"]}` {
+					t.Errorf("ETF scope changed: %s", body)
+				}
+				if r.URL.Path != "/api/v1/data/etf-syncs" && len(body) != 0 {
+					t.Error("recovery scope not empty")
+				}
+				w.WriteHeader(202)
+				io.WriteString(w, `{"batch":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"queued"}}`)
+			} else if r.URL.Path == "/api/v1/data/etf-syncs" {
+				io.WriteString(w, `{"batches":[]}`)
+			} else {
+				io.WriteString(w, `{"batch":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"partial"}}`)
+			}
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1/data/sync-runs") {
 			syncCalls.Add(1)
 			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" || r.Header.Get("X-CSRF-Token") != "" {
@@ -143,7 +169,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	wrong, _ := rsa.GenerateKey(rand.Reader, 2048)
 	valid := sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), key)
 	for _, token := range []string{"", "not-a-jwt", sign(jwks.URL, "other-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(-time.Hour).Unix(), key), sign("https://evil.invalid", "demo-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), wrong)} {
-		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/backtest/range", "/api/rotation/daily", "/api/rotation/daily/dates", "/api/rotation/reference-captures", "/api/rotation/reference-captures/20250102", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
+		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/backtest/range", "/api/rotation/daily", "/api/rotation/daily/dates", "/api/rotation/reference-captures", "/api/rotation/reference-captures/20250102", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/api/etf-syncs", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
 			req := httptest.NewRequest("GET", path, nil)
 			req.Header.Set("Cf-Access-Jwt-Assertion", token)
 			rec := httptest.NewRecorder()
@@ -371,6 +397,15 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			cookie                            bool
 			status                            int
 		}{
+			{"POST", "/api/etf-syncs", `{"codes":["510880.SH"]}`, "https://evil.invalid", csrf, true, 403},
+			{"POST", "/api/etf-syncs", `{}`, "https://demo.candlea.cn", csrf, false, 403},
+			{"POST", "/api/etf-syncs", `{"codes":["510880.SH"],"endDate":"20300101"}`, "https://demo.candlea.cn", csrf, true, 400},
+			{"POST", "/api/etf-syncs", `{"codes":["../sync"]}`, "https://demo.candlea.cn", csrf, true, 400},
+			{"POST", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/retry", `{}`, "https://demo.candlea.cn", csrf, true, 400},
+			{"POST", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/retry", "", "https://evil.invalid", csrf, true, 403},
+			{"POST", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", `{}`, "https://demo.candlea.cn", csrf, true, 405},
+			{"GET", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/retry", "", "", "", false, 405},
+			{"GET", "/api/etf-syncs?endDate=20300101", "", "", "", false, 400},
 			{"POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://evil.invalid", csrf, true, 403},
 			{"POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", csrf, false, 403},
 			{"POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", "mismatch", true, 403},
@@ -407,8 +442,25 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 				t.Fatal("query failed", rec.Code)
 			}
 		}
+		for _, path := range []string{"/api/etf-syncs", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/retry", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel"} {
+			body := ""
+			if path == "/api/etf-syncs" {
+				body = `{"codes":["510880.SH"]}`
+			}
+			if res := send("POST", path, body, "https://demo.candlea.cn", csrf, true); res.Code != 202 {
+				t.Fatalf("ETF write %s: %d %s", path, res.Code, res.Body.String())
+			}
+		}
+		for _, path := range []string{"/api/etf-syncs", "/api/etf-syncs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
+			if res := send("GET", path, "", "", "", false); res.Code != 200 {
+				t.Fatalf("ETF read %s: %d", path, res.Code)
+			}
+		}
 		syncFailure.Store(true)
 		defer syncFailure.Store(false)
+		if res := send("POST", "/api/etf-syncs", `{"codes":["510880.SH"]}`, "https://demo.candlea.cn", csrf, true); res.Code != 502 || strings.Contains(res.Body.String(), "server-only-secret") {
+			t.Fatal("ETF upstream details exposed", res.Code)
+		}
 		rec = send("POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", csrf, true)
 		if rec.Code != 502 || strings.Contains(rec.Body.String(), "server-only-secret") {
 			t.Fatal("upstream details leaked")

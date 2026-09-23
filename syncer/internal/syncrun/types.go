@@ -1,5 +1,5 @@
 // Package syncrun owns durable acceptance, object serialization and transactional
-// progress for index synchronization. It has no ETF or strategy dependencies.
+// progress for index and ETF synchronization, preserving separate market-data identities.
 package syncrun
 
 import (

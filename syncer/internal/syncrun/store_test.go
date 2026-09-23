@@ -35,7 +35,7 @@ func testDB(t *testing.T) *sql.DB {
 	if err = schema.Ensure(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range []string{"DROP TRIGGER IF EXISTS reject_checkpoint", "UPDATE index_series SET active_run=NULL", "DELETE FROM sync_run", "DELETE FROM index_daily", "DELETE FROM instrument", "DELETE FROM etf_daily", "DELETE FROM etf_adj_factor", "DELETE FROM intraday_snapshot"} {
+	for _, q := range []string{"DROP TRIGGER IF EXISTS reject_checkpoint", "UPDATE etf_sync_object SET active_run=NULL", "DELETE FROM etf_sync_batch", "DELETE FROM etf_sync_run", "UPDATE index_series SET active_run=NULL", "DELETE FROM sync_run", "DELETE FROM index_daily", "DELETE FROM instrument", "DELETE FROM etf_daily", "DELETE FROM etf_adj_factor", "DELETE FROM intraday_snapshot"} {
 		if _, err = db.Exec(q); err != nil {
 			t.Fatal(err)
 		}

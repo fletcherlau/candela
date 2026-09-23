@@ -10,7 +10,7 @@ import (
 
 type ServiceContext struct {
 	Config         config.Config
-	Syncer         *core.Syncer
+	Syncer         core.SyncRunner
 	SWSyncer       *core.SWSyncer
 	SignalComputer *core.SignalComputer
 	Store          core.Store
@@ -18,7 +18,7 @@ type ServiceContext struct {
 	ApiKeyAuth     rest.Middleware
 }
 
-func NewServiceContext(c config.Config, syncer *core.Syncer, swSyncer *core.SWSyncer, signalComputer *core.SignalComputer, store core.Store, swStore core.SWStore) *ServiceContext {
+func NewServiceContext(c config.Config, syncer core.SyncRunner, swSyncer *core.SWSyncer, signalComputer *core.SignalComputer, store core.Store, swStore core.SWStore) *ServiceContext {
 	return &ServiceContext{
 		Config:         c,
 		Syncer:         syncer,

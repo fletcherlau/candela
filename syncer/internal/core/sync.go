@@ -97,16 +97,22 @@ type Result struct {
 	AdjUpserted   int    `json:"adjUpserted"`
 	Message       string `json:"message"`
 
-	success bool // 供 Summary 计数，不随 JSON 暴露
+	Successful bool `json:"-"` // 供 Summary 计数，不随 JSON 暴露
 }
 
-func (r Result) Succeeded() bool { return r.success }
+func (r Result) Succeeded() bool { return r.Successful }
 
 // Summary 是一次同步触发的整体结果。
 type Summary struct {
 	Total   int      `json:"total"`
 	Success int      `json:"success"`
 	Results []Result `json:"results"`
+}
+
+// SyncRunner is the compatibility seam for callers that wait for synchronization.
+// Production uses durable execution; cancellation of a waiter does not cancel it.
+type SyncRunner interface {
+	Run(context.Context, []string) Summary
 }
 
 // Syncer 编排增量同步。零值不可用，用 NewSyncer 构造。
@@ -168,7 +174,7 @@ func (s *Syncer) Run(ctx context.Context, tsCodes []string) Summary {
 	}
 	for _, inst := range instruments {
 		res := s.syncOne(ctx, inst.TsCode)
-		if res.success {
+		if res.Successful {
 			sum.Success++
 		}
 		sum.Results = append(sum.Results, res)
@@ -209,7 +215,7 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 
 	if start > today {
 		res.Message = "已是最新"
-		res.success = true
+		res.Successful = true
 		return res
 	}
 
@@ -263,7 +269,7 @@ func (s *Syncer) syncOne(ctx context.Context, tsCode string) Result {
 	}
 
 	res.Message = "ok"
-	res.success = true
+	res.Successful = true
 	return res
 }
 

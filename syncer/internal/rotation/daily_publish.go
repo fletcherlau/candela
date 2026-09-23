@@ -30,7 +30,11 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 	if err = tx.QueryRowContext(ctx, "SELECT revision,status FROM rotation_result WHERE id=1").Scan(&revision, &syncState); err != nil {
 		return err
 	}
-	if syncState == "syncing" {
+	block, err := etfPublicationBlock(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if syncState == "syncing" || block != "" {
 		return nil
 	}
 	defer func() {

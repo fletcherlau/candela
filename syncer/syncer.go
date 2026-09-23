@@ -74,15 +74,17 @@ func main() {
 	source := &fundDailySource{client: tushareClient}
 	swSrc := &swSource{client: tushareClient}
 	st := store.NewMySQLStore(db)
-	syncer := core.NewSyncer(source, st,
-		c.Sync.ChunkDays, c.Sync.DefaultStartDate, nil)
+	syncer := &syncrun.ETFService{Store: syncrun.NewETFStore(db), Source: source, ChunkDays: c.Sync.ChunkDays, DefaultStart: c.Sync.DefaultStartDate}
+	etfCtx, stopETFs := context.WithCancel(context.Background())
+	etfDone := make(chan struct{})
+	go func() { defer close(etfDone); syncer.Serve(etfCtx) }()
+	defer func() { stopETFs(); <-etfDone }()
 	swSyncer := core.NewSWSyncer(swSrc, st,
 		c.Sync.ChunkDays, c.Sync.DefaultStartDate, "", nil)
 	// 盘中信号：gtimg 实时行情 + 库内日线，分位窗口与 today 用默认值。
 	signalComputer := core.NewSignalComputer(newGtimgSource(""), st, 0, nil)
 
 	rotationService := &rotation.Service{DB: db, Calendar: &rotationCalendar{client: tushareClient}, Realtime: newGtimgSource("")}
-	syncer.SetObserver(rotationService)
 	if *rotationRefresh {
 		sum := syncer.Run(context.Background(), core.RotationCodes)
 		if sum.Success != sum.Total {
@@ -133,6 +135,7 @@ func main() {
 	defer server.Stop()
 
 	svcCtx := svc.NewServiceContext(c, syncer, swSyncer, signalComputer, st, st)
+	server.AddRoutes(syncer.Routes(svcCtx.ApiKeyAuth))
 	handler.RegisterHandlers(server, svcCtx)
 	handler.RegisterCatalog(server, svcCtx, st)
 	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/backtest", Handler: svcCtx.ApiKeyAuth(rotationService.Handler().ServeHTTP)})
@@ -156,6 +159,7 @@ func main() {
 		defer close(workerDone)
 		(&syncrun.Worker{Store: runStore, Source: &syncrun.TushareSource{Client: tushareClient}}).Serve(workerCtx)
 	}()
+	proc.AddShutdownListener(stopETFs)
 	proc.AddShutdownListener(stopWorker)
 	defer func() { stopWorker(); <-workerDone }()
 

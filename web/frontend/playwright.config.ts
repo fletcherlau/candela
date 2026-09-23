@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests",
   testIgnore: [
+    "etf-sync.spec.ts",
     "sync.spec.ts",
     "design.spec.ts",
     "rotation-daily.spec.ts",
