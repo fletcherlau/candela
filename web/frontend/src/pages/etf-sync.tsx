@@ -20,6 +20,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const states: Record<string, string> = {
@@ -61,6 +62,8 @@ type Item = {
   parentRun: string;
 };
 type Batch = {
+  mode: "incremental" | "historical";
+  startDate: string;
   events?: {
     code: string;
     kind: string;
@@ -90,7 +93,8 @@ function isBatch(value: unknown, detail = false): value is Batch {
   )
     return false;
   if (
-    !["parentId", "endDate", "createdAt"].every(
+    (b.mode !== "incremental" && b.mode !== "historical") ||
+    !["parentId", "startDate", "endDate", "createdAt"].every(
       (k) => typeof b[k] === "string",
     ) ||
     !["total", "success", "failed", "cancelled"].every(
@@ -140,6 +144,15 @@ function isBatch(value: unknown, detail = false): value is Batch {
       ))
   );
 }
+class BatchRequestError extends Error {
+  status: number;
+  validationField: string;
+  constructor(message: string, status: number, validationField: string) {
+    super(message);
+    this.status = status;
+    this.validationField = validationField;
+  }
+}
 async function read(path: string, options: RequestInit = {}) {
   const response = await fetch(path, {
     cache: "no-store",
@@ -149,14 +162,18 @@ async function read(path: string, options: RequestInit = {}) {
       : AbortSignal.timeout(15000),
   });
   if (!response.ok)
-    throw new Error(
-      response.status === 401
+    throw new BatchRequestError(
+      response.status === 401 || response.status === 403
         ? "登录已过期或无权访问，请刷新页面重新登录。"
         : response.status === 409
           ? "批次尚未结束或没有可重试的失败对象，请刷新批次。"
           : response.status === 404
             ? "批次不存在。"
-            : "批次服务暂时不可用，请重新读取。",
+            : response.status === 400
+              ? "同步请求无效，请检查代码、日期和启用名单；结束日期不能晚于北京时间今天。"
+              : "批次服务暂时不可用，请重新读取。",
+      response.status,
+      response.headers.get("X-Validation-Field") || "",
     );
   return response.json();
 }
@@ -175,6 +192,10 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
   });
   const [detail, setDetail] = useState<Batch | null>(null);
   const [codes, setCodes] = useState("");
+  const [mode, setMode] = useState<"incremental" | "historical">("incremental");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [rangeError, setRangeError] = useState("");
   const [codesError, setCodesError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -276,6 +297,17 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
       );
       return;
     }
+    const creating = intent === "submit" || intent === "selected";
+    if (
+      creating &&
+      mode === "historical" &&
+      (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
+        startDate > endDate)
+    ) {
+      setRangeError("请选择有效的起止日期，开始日期不能晚于结束日期。");
+      return;
+    }
     writing.current = true;
     setBusy(true);
     setNotice("");
@@ -286,7 +318,6 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
       const session = await read("/api/session");
       if (typeof session.csrfToken !== "string")
         throw new Error("会话验证失败，请刷新页面。");
-      const creating = intent === "submit" || intent === "selected";
       const response = await read(
         creating ? "/api/etf-syncs" : `/api/etf-syncs/${detail!.id}/${intent}`,
         {
@@ -295,7 +326,20 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
             "Content-Type": "application/json",
             "X-CSRF-Token": session.csrfToken,
           },
-          ...(creating ? { body: JSON.stringify({ codes: input }) } : {}),
+          ...(creating
+            ? {
+                body: JSON.stringify({
+                  codes: input,
+                  ...(mode === "historical"
+                    ? {
+                        mode,
+                        startDate: startDate.replaceAll("-", ""),
+                        endDate: endDate.replaceAll("-", ""),
+                      }
+                    : {}),
+                }),
+              }
+            : {}),
         },
       );
       if (!isBatch(response.batch, true)) throw new Error("批次响应异常。");
@@ -309,8 +353,20 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
             : "批次已保存，后台继续执行；离开或刷新页面不会取消任务。",
       );
     } catch (err) {
+      if (
+        creating &&
+        mode === "historical" &&
+        err instanceof BatchRequestError &&
+        err.status === 400 &&
+        err.validationField === "range"
+      ) {
+        setRangeError("请选择有效的起止日期；结束日期不能晚于北京时间今天。");
+      }
       setOperationError(
-        `${message(err)} 操作可能已被接受，请先刷新批次列表确认。`,
+        err instanceof BatchRequestError &&
+          [400, 401, 403, 404, 409].includes(err.status)
+          ? message(err)
+          : `${message(err)} 操作可能已被接受，请先刷新批次列表确认。`,
       );
     } finally {
       writing.current = false;
@@ -326,13 +382,98 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
             <h2>ETF 批量同步</h2>
           </CardTitle>
           <CardDescription>
-            按启用名单或指定代码追补日线与复权因子，逐只查看结果并恢复失败步骤。
+            按启用名单或指定代码同步日线与复权因子，支持指定历史区间补缺改错。
           </CardDescription>
         </CardHeader>
         <CardContent className="flex min-w-0 flex-col gap-5">
+          <FieldGroup>
+            <Field data-disabled={busy}>
+              <FieldLabel id="etf-mode-label">同步方式</FieldLabel>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={mode}
+                disabled={busy}
+                aria-labelledby="etf-mode-label"
+                onValueChange={(value) => {
+                  if (value === "incremental" || value === "historical") {
+                    setMode(value);
+                    setRangeError("");
+                  }
+                }}
+              >
+                <ToggleGroupItem value="incremental">增量同步</ToggleGroupItem>
+                <ToggleGroupItem value="historical">历史重同步</ToggleGroupItem>
+              </ToggleGroup>
+              <FieldDescription id="etf-range-help">
+                {mode === "historical"
+                  ? "重新获取所选闭区间的原始日线和因子，补齐缺失并更新已有值，保留区间外数据。"
+                  : "追补至提交当日（北京时间），由后端固定本次范围。"}
+              </FieldDescription>
+            </Field>
+            {mode === "historical" && (
+              <FieldGroup className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <Field
+                  data-invalid={!!rangeError}
+                  data-disabled={busy}
+                  className="min-w-0"
+                >
+                  <FieldLabel htmlFor="etf-history-start">开始日期</FieldLabel>
+                  <Input
+                    id="etf-history-start"
+                    type="date"
+                    value={startDate}
+                    disabled={busy}
+                    className="min-w-0"
+                    aria-invalid={!!rangeError}
+                    aria-describedby={
+                      rangeError
+                        ? "etf-range-help etf-range-error"
+                        : "etf-range-help"
+                    }
+                    onChange={(event) => {
+                      setStartDate(event.target.value);
+                      setRangeError("");
+                    }}
+                  />
+                </Field>
+                <Field
+                  data-invalid={!!rangeError}
+                  data-disabled={busy}
+                  className="min-w-0"
+                >
+                  <FieldLabel htmlFor="etf-history-end">结束日期</FieldLabel>
+                  <Input
+                    id="etf-history-end"
+                    type="date"
+                    value={endDate}
+                    disabled={busy}
+                    className="min-w-0"
+                    aria-invalid={!!rangeError}
+                    aria-describedby={
+                      rangeError
+                        ? "etf-range-help etf-range-error"
+                        : "etf-range-help"
+                    }
+                    onChange={(event) => {
+                      setEndDate(event.target.value);
+                      setRangeError("");
+                    }}
+                  />
+                </Field>
+                {rangeError && (
+                  <FieldError id="etf-range-error" className="sm:col-span-2">
+                    {rangeError}
+                  </FieldError>
+                )}
+              </FieldGroup>
+            )}
+          </FieldGroup>
           <div className="flex flex-wrap gap-3">
             <Button disabled={busy} onClick={() => void act("submit")}>
-              同步全部启用 ETF
+              {mode === "historical"
+                ? "重同步全部启用 ETF"
+                : "同步全部启用 ETF"}
             </Button>
             <Button
               variant="outline"
@@ -386,13 +527,13 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
                   variant="outline"
                   disabled={busy || !codes.trim()}
                 >
-                  同步指定 ETF
+                  {mode === "historical" ? "重同步指定 ETF" : "同步指定 ETF"}
                 </Button>
               </Field>
             </FieldGroup>
           </form>
           <p className="text-xs leading-6 text-muted-foreground">
-            对象与截止日由后端在提交时固定，截止日为提交当日（北京时间）。日线与因子分别续传，相同未结束批次自动合并。
+            对象与范围在提交时固定。日线与因子分别续传，相同未结束批次自动合并；失败重试沿用原范围和已完成步骤。
           </p>
           {notice && (
             <p role="status" className="text-sm">
@@ -438,7 +579,11 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
                   <span>
                     {states[batch.state]} · {batch.total} 只
                   </span>
-                  <span>截止 {date(batch.endDate)}</span>
+                  <span>
+                    {batch.mode === "historical"
+                      ? `历史重同步 ${date(batch.startDate)} — ${date(batch.endDate)}`
+                      : `增量同步 · 截止 ${date(batch.endDate)}`}
+                  </span>
                   <span className="break-all">
                     {batch.id.slice(0, 8)}
                     {batch.parentId ? " · 失败重试" : ""}
@@ -461,9 +606,11 @@ export function ETFSync({ onCompleted }: { onCompleted: () => void }) {
                   批次 {detail.id}
                 </p>
                 <p className="text-sm">
-                  截止 {date(detail.endDate)} · 成功 {detail.success} /{" "}
-                  {detail.total} · 失败 {detail.failed} · 取消{" "}
-                  {detail.cancelled}
+                  {detail.mode === "historical"
+                    ? `历史重同步 ${date(detail.startDate)} — ${date(detail.endDate)}`
+                    : `截止 ${date(detail.endDate)}`}{" "}
+                  · 成功 {detail.success} / {detail.total} · 失败{" "}
+                  {detail.failed} · 取消 {detail.cancelled}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   提交于{" "}

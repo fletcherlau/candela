@@ -264,122 +264,130 @@ func TestETFLegacyWaiterDisconnectDoesNotCancelBackgroundBatch(t *testing.T) {
 }
 
 func TestETFHTTPRecoveryAndCancellationPreserveCompletedDailyStep(t *testing.T) {
-	for _, cancelBatch := range []bool{false, true} {
-		t.Run(fmt.Sprint(cancelBatch), func(t *testing.T) {
-			db := testDB(t)
-			entered, release := make(chan struct{}), make(chan struct{})
-			var once sync.Once
-			source := &etfFixture{failed: map[string]bool{}, calls: map[string]int{}, before: func(ctx context.Context, code, stage string) error {
-				if stage != "adj" {
-					return nil
-				}
-				once.Do(func() { close(entered) })
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-release:
-					return nil
-				}
-			}}
-			svc := &ETFService{Store: NewETFStore(db), Source: source, DefaultStart: "20250101", ChunkDays: 31, Now: func() time.Time { return at("20250103") }}
-			api := etfAPI(t, svc)
-			var accepted struct {
-				Batch ETFBatch `json:"batch"`
-			}
-			etfHTTP(t, "POST", api, `{"codes":["510880.SH"]}`, 202, &accepted)
-			ctx, stop := context.WithCancel(context.Background())
-			done := make(chan struct{})
-			go func() { defer close(done); svc.Serve(ctx) }()
-			t.Cleanup(func() { stop(); <-done })
-			select {
-			case <-entered:
-			case <-time.After(4 * time.Second):
-				t.Fatal("factor step never started")
-			}
-			var mid struct {
-				Batch ETFBatch `json:"batch"`
-			}
-			etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &mid)
-			if mid.Batch.Items[0].DailyCheckpoint != "20250103" || mid.Batch.Items[0].DailyRows != 1 {
-				t.Fatal("daily checkpoint absent", mid)
-			}
-			if cancelBatch {
-				etfHTTP(t, "POST", api+"/"+accepted.Batch.ID+"/cancel", "", 200, nil)
-				close(release)
-			} else {
-				stop()
-			}
-			if !cancelBatch {
-				<-done
-			}
-			expected := "queued"
-			if cancelBatch {
-				expected = "cancelled"
-			}
-			until := time.Now().Add(3 * time.Second)
-			for {
-				etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &mid)
-				if mid.Batch.State == expected {
-					break
-				}
-				if time.Now().After(until) {
-					t.Fatalf("expected %s: %+v", expected, mid)
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
-			stop()
-			<-done
-			source.before = nil
-			fresh := &ETFService{Store: NewETFStore(db), Source: source, DefaultStart: "20100101", ChunkDays: 1, Now: func() time.Time { return at("20250110") }}
-			ctx2, stop2 := context.WithCancel(context.Background())
-			done2 := make(chan struct{})
-			go func() { defer close(done2); fresh.Serve(ctx2) }()
-			t.Cleanup(func() { stop2(); <-done2 })
-			if cancelBatch {
-				time.Sleep(1100 * time.Millisecond)
-				etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &mid)
-				if mid.Batch.State != "cancelled" || mid.Batch.Items[0].AdjRows != 0 {
-					t.Fatal("cancelled batch resumed", mid)
-				}
-			} else {
-				until = time.Now().Add(3 * time.Second)
-				for {
+	for _, mode := range []string{"incremental", "historical"} {
+		t.Run(mode, func(t *testing.T) {
+			for _, cancelBatch := range []bool{false, true} {
+				t.Run(fmt.Sprint(cancelBatch), func(t *testing.T) {
+					db := testDB(t)
+					entered, release := make(chan struct{}), make(chan struct{})
+					var once sync.Once
+					source := &etfFixture{failed: map[string]bool{}, calls: map[string]int{}, before: func(ctx context.Context, code, stage string) error {
+						if stage != "adj" {
+							return nil
+						}
+						once.Do(func() { close(entered) })
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case <-release:
+							return nil
+						}
+					}}
+					svc := &ETFService{Store: NewETFStore(db), Source: source, DefaultStart: "20250101", ChunkDays: 31, Now: func() time.Time { return at("20250103") }}
+					api := etfAPI(t, svc)
+					var accepted struct {
+						Batch ETFBatch `json:"batch"`
+					}
+					body := `{"codes":["510880.SH"]}`
+					if mode == "historical" {
+						body = `{"codes":["510880.SH"],"mode":"historical","startDate":"20250102","endDate":"20250103"}`
+					}
+					etfHTTP(t, "POST", api, body, 202, &accepted)
+					ctx, stop := context.WithCancel(context.Background())
+					done := make(chan struct{})
+					go func() { defer close(done); svc.Serve(ctx) }()
+					t.Cleanup(func() { stop(); <-done })
+					select {
+					case <-entered:
+					case <-time.After(4 * time.Second):
+						t.Fatal("factor step never started")
+					}
+					var mid struct {
+						Batch ETFBatch `json:"batch"`
+					}
 					etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &mid)
-					if mid.Batch.State == "succeeded" {
-						break
+					if mid.Batch.Items[0].DailyCheckpoint != "20250103" || mid.Batch.Items[0].DailyRows != 1 {
+						t.Fatal("daily checkpoint absent", mid)
 					}
-					if time.Now().After(until) {
-						t.Fatal("recovery failed", mid)
+					if cancelBatch {
+						etfHTTP(t, "POST", api+"/"+accepted.Batch.ID+"/cancel", "", 200, nil)
+						close(release)
+					} else {
+						stop()
 					}
-					time.Sleep(10 * time.Millisecond)
-				}
+					if !cancelBatch {
+						<-done
+					}
+					expected := "queued"
+					if cancelBatch {
+						expected = "cancelled"
+					}
+					until := time.Now().Add(3 * time.Second)
+					for {
+						etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &mid)
+						if mid.Batch.State == expected {
+							break
+						}
+						if time.Now().After(until) {
+							t.Fatalf("expected %s: %+v", expected, mid)
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					stop()
+					<-done
+					source.before = nil
+					fresh := &ETFService{Store: NewETFStore(db), Source: source, DefaultStart: "20100101", ChunkDays: 1, Now: func() time.Time { return at("20250110") }}
+					ctx2, stop2 := context.WithCancel(context.Background())
+					done2 := make(chan struct{})
+					go func() { defer close(done2); fresh.Serve(ctx2) }()
+					t.Cleanup(func() { stop2(); <-done2 })
+					if cancelBatch {
+						time.Sleep(1100 * time.Millisecond)
+						etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &mid)
+						if mid.Batch.State != "cancelled" || mid.Batch.Items[0].AdjRows != 0 {
+							t.Fatal("cancelled batch resumed", mid)
+						}
+					} else {
+						until = time.Now().Add(3 * time.Second)
+						for {
+							etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &mid)
+							if mid.Batch.State == "succeeded" {
+								break
+							}
+							if time.Now().After(until) {
+								t.Fatal("recovery failed", mid)
+							}
+							time.Sleep(10 * time.Millisecond)
+						}
 
-				var audit struct {
-					Batch struct {
-						Events []struct {
-							Kind string `json:"kind"`
-							Code string `json:"code"`
-						} `json:"events"`
-					} `json:"batch"`
-				}
-				etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &audit)
-				seen := map[string]bool{}
-				for _, event := range audit.Batch.Events {
-					if event.Code == "510880.SH" {
-						seen[event.Kind] = true
+						var audit struct {
+							Batch struct {
+								Events []struct {
+									Kind string `json:"kind"`
+									Code string `json:"code"`
+								} `json:"events"`
+							} `json:"batch"`
+						}
+						etfHTTP(t, "GET", api+"/"+accepted.Batch.ID, "", 200, &audit)
+						seen := map[string]bool{}
+						for _, event := range audit.Batch.Events {
+							if event.Code == "510880.SH" {
+								seen[event.Kind] = true
+							}
+						}
+						if !seen["interrupted"] || !seen["resumed"] {
+							t.Fatalf("interruption and recovery not queryable: %+v", audit)
+						}
+						if mid.Batch.EndDate != "20250103" || mid.Batch.Items[0].ChunkDays != 31 || mid.Batch.Mode != mode || (mode == "historical" && mid.Batch.StartDate != "20250102") {
+							t.Fatal("recovery changed frozen plan", mid)
+						}
 					}
-				}
-				if !seen["interrupted"] || !seen["resumed"] {
-					t.Fatalf("interruption and recovery not queryable: %+v", audit)
-				}
-				if mid.Batch.EndDate != "20250103" || mid.Batch.Items[0].ChunkDays != 31 {
-					t.Fatal("recovery changed frozen plan", mid)
-				}
-			}
-			source.mu.Lock()
-			defer source.mu.Unlock()
-			if source.calls["510880.SH/daily"] != 1 {
-				t.Fatal("recovery requested saved daily step", source.calls)
+					source.mu.Lock()
+					defer source.mu.Unlock()
+					if source.calls["510880.SH/daily"] != 1 {
+						t.Fatal("recovery requested saved daily step", source.calls)
+					}
+				})
 			}
 		})
 	}

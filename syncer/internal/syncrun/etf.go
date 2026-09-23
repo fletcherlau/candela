@@ -38,6 +38,7 @@ func newRunID() (string, error) {
 var etfCode = regexp.MustCompile(`^[0-9]{6}\.(SH|SZ)$`)
 
 type etfRequestError struct {
+	field   string
 	status  int
 	message string
 }
@@ -63,6 +64,8 @@ type ETFEvent struct {
 	Code string `json:"code"`
 }
 type ETFBatch struct {
+	Mode      string     `json:"mode"`
+	StartDate string     `json:"startDate"`
 	Events    []ETFEvent `json:"events,omitempty"`
 	ID        string     `json:"id"`
 	ParentID  string     `json:"parentId"`
@@ -84,7 +87,7 @@ func progress(row scanner) (p ETFProgress, err error) {
 }
 func readETFBatch(ctx context.Context, tx *sql.Tx, id string) (b ETFBatch, err error) {
 	var parent sql.NullString
-	if err = tx.QueryRowContext(ctx, "SELECT id,parent_id,end_date,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%sZ') FROM etf_sync_batch WHERE id=?", id).Scan(&b.ID, &parent, &b.EndDate, &b.CreatedAt); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT id,parent_id,mode,start_date,end_date,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%sZ') FROM etf_sync_batch WHERE id=?", id).Scan(&b.ID, &parent, &b.Mode, &b.StartDate, &b.EndDate, &b.CreatedAt); err != nil {
 		return
 	}
 	b.ParentID = parent.String
@@ -180,13 +183,13 @@ func (s *ETFService) List(ctx context.Context) ([]ETFBatch, error) {
 	}
 	defer tx.Rollback()
 	// List summaries are bounded independently of the number of ETF items.
-	rows, err := tx.QueryContext(ctx, `SELECT b.id,COALESCE(b.parent_id,''),b.end_date,
+	rows, err := tx.QueryContext(ctx, `SELECT b.id,COALESCE(b.parent_id,''),b.mode,b.start_date,b.end_date,
  DATE_FORMAT(b.created_at,'%Y-%m-%dT%H:%i:%sZ'),COUNT(r.id),
  COALESCE(SUM(r.state='succeeded'),0),COALESCE(SUM(r.state='failed'),0),
  COALESCE(SUM(r.state='cancelled'),0),COALESCE(SUM(r.state IN ('running','cancelling')),0)
  FROM (SELECT * FROM etf_sync_batch ORDER BY created_at DESC,id DESC LIMIT 50) b
  LEFT JOIN etf_sync_item i ON i.batch_id=b.id LEFT JOIN etf_sync_run r ON r.id=i.run_id
- GROUP BY b.id,b.parent_id,b.end_date,b.created_at ORDER BY b.created_at DESC,b.id DESC`)
+ GROUP BY b.id,b.parent_id,b.mode,b.start_date,b.end_date,b.created_at ORDER BY b.created_at DESC,b.id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +197,7 @@ func (s *ETFService) List(ctx context.Context) ([]ETFBatch, error) {
 	for rows.Next() {
 		var b ETFBatch
 		var running int
-		if err = rows.Scan(&b.ID, &b.ParentID, &b.EndDate, &b.CreatedAt, &b.Total, &b.Success, &b.Failed, &b.Cancelled, &running); err != nil {
+		if err = rows.Scan(&b.ID, &b.ParentID, &b.Mode, &b.StartDate, &b.EndDate, &b.CreatedAt, &b.Total, &b.Success, &b.Failed, &b.Cancelled, &running); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -213,7 +216,7 @@ func segments(from, to string, chunk int) int {
 	if from > to {
 		return 0
 	}
-	return int(date(to).Sub(date(from)).Hours()/24)/chunk + 1
+	return int((date(to).Unix()-date(from).Unix())/86400)/chunk + 1
 }
 func rotationCode(code string) bool {
 	for _, c := range core.RotationCodes {
@@ -227,14 +230,18 @@ func updateETFPublication(ctx context.Context, tx *sql.Tx, id, code string) erro
 	if !rotationCode(code) {
 		return nil
 	}
-	var state, end string
-	if err := tx.QueryRowContext(ctx, "SELECT state,end_date FROM etf_sync_run WHERE id=?", id).Scan(&state, &end); err != nil {
+	var state, mode, end string
+	if err := tx.QueryRowContext(ctx, "SELECT state,mode,end_date FROM etf_sync_run WHERE id=?", id).Scan(&state, &mode, &end); err != nil {
 		return err
 	}
 	status, message := "failed", "ETF 同步未完成，保留上一套完整结果"
 	if state == "succeeded" {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO rotation_coverage(ts_code,through_date) VALUES (?,?) ON DUPLICATE KEY UPDATE through_date=GREATEST(through_date,VALUES(through_date))", code, end); err != nil {
-			return err
+		// Re-querying a narrow historical window cannot establish full coverage
+		// through its end. Preserve the coverage proved by incremental sync.
+		if mode == "incremental" {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO rotation_coverage(ts_code,through_date) VALUES (?,?) ON DUPLICATE KEY UPDATE through_date=GREATEST(through_date,VALUES(through_date))", code, end); err != nil {
+				return err
+			}
 		}
 		status, message = "pending", "原始数据已更新，等待整组计算发布"
 	}
