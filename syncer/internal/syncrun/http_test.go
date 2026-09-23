@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"syncer/internal/middleware"
 	"testing"
 	"time"
 )
@@ -15,7 +14,7 @@ func TestMySQLHTTPAcceptanceAndDisconnectedBrowser(t *testing.T) {
 	db := testDB(t)
 	st := NewStore(db)
 	src := sourceFor(t, &sourceFixture{bars: fixtureBars("20041231", Cutoff(time.Now()))})
-	api := httptest.NewServer(middleware.NewApiKeyAuthMiddleware("fixture-only").Handle(st.Handler()))
+	api := httptest.NewServer(maintenanceRouter(t, st))
 	defer api.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	req, _ := http.NewRequestWithContext(ctx, "POST", api.URL+"/api/v1/data/sync-runs", strings.NewReader(`{"mode":"backfill"}`))

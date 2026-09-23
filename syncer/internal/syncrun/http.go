@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/zeromicro/go-zero/rest"
 	"io"
 	"net/http"
 	"regexp"
@@ -67,8 +68,35 @@ func (s *Store) Handler() http.HandlerFunc {
 			return
 		}
 		id := strings.TrimPrefix(r.URL.Path, path+"/")
+		cancelling := strings.HasSuffix(id, "/cancel")
+		if cancelling {
+			id = strings.TrimSuffix(id, "/cancel")
+		}
 		if !ValidID(id) {
 			fail(404, "任务不存在。")
+			return
+		}
+		if cancelling {
+			if r.Method != http.MethodPost {
+				w.Header().Set("Allow", "POST")
+				fail(405, "不支持此操作。")
+				return
+			}
+			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1))
+			if err != nil || len(body) != 0 {
+				fail(400, "取消操作不接受请求内容。")
+				return
+			}
+			run, err := s.Cancel(r.Context(), id)
+			if errors.Is(err, sql.ErrNoRows) {
+				fail(404, "任务不存在。")
+				return
+			}
+			if err != nil {
+				fail(503, "取消结果未确认，请查询任务后重试。")
+				return
+			}
+			send(200, map[string]any{"run": run})
 			return
 		}
 		if r.Method != http.MethodGet {
@@ -86,5 +114,17 @@ func (s *Store) Handler() http.HandlerFunc {
 			return
 		}
 		send(200, map[string]any{"run": run})
+	}
+}
+
+// Routes is shared by the production server and HTTP acceptance harness, so a
+// handler cannot pass acceptance while remaining unreachable in production.
+func (s *Store) Routes(auth func(http.HandlerFunc) http.HandlerFunc) []rest.Route {
+	handler := auth(s.Handler())
+	return []rest.Route{
+		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/data/sync-runs", Handler: handler},
+		{Method: http.MethodGet, Path: "/api/v1/data/sync-runs/:id", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/data/sync-runs/:id/cancel", Handler: handler},
 	}
 }

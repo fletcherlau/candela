@@ -70,6 +70,14 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 				io.WriteString(w, "server-only-secret database details")
 				return
 			}
+			if r.URL.Path == "/api/v1/data/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel" {
+				body, _ := io.ReadAll(r.Body)
+				if r.Method != "POST" || len(body) != 0 {
+					t.Error("invalid cancellation forwarded")
+				}
+				io.WriteString(w, `{"run":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"cancelled"}}`)
+				return
+			}
 			if r.Method == http.MethodPost {
 				body, _ := io.ReadAll(r.Body)
 				if string(body) != `{"mode":"backfill"}` {
@@ -272,6 +280,11 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			{"POST", "/api/sync-runs", strings.Repeat("x", 2048), "https://demo.candlea.cn", csrf, true, 400},
 			{"POST", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", `{}`, "https://demo.candlea.cn", csrf, true, 405},
 			{"DELETE", "/api/sync-runs", `{}`, "https://demo.candlea.cn", csrf, true, 405},
+			{"POST", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel", "", "https://evil.invalid", csrf, true, 403},
+			{"POST", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel", "", "https://demo.candlea.cn", csrf, false, 403},
+			{"POST", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel", "{}", "https://demo.candlea.cn", csrf, true, 400},
+			{"GET", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel", "", "", "", false, 405},
+			{"POST", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel/extra", "", "https://demo.candlea.cn", csrf, true, 405},
 			{"GET", "/api/sync-runs/../../sync/status", "", "", "", false, 404},
 			{"GET", "/api/sync-runs?target=evil", "", "", "", false, 400},
 		} {
@@ -284,6 +297,10 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 		rec := send("POST", "/api/sync-runs", `{"mode":"backfill"}`, "https://demo.candlea.cn", csrf, true)
 		if rec.Code != 202 || !strings.Contains(rec.Body.String(), "queued") {
 			t.Fatalf("accepted %d %s", rec.Code, rec.Body.String())
+		}
+		cancelPath := "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel"
+		if rec := send("POST", cancelPath, "", "https://demo.candlea.cn", csrf, true); rec.Code != 200 {
+			t.Fatalf("cancel proxy: %d %s", rec.Code, rec.Body.String())
 		}
 		for _, path := range []string{"/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
 			if rec := send("GET", path, "", "", "", false); rec.Code != 200 {

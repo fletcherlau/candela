@@ -12,28 +12,38 @@ const Code = "000985.CSI"
 const HistoryFloor = "00010101" // unbounded calendar range; not an assumed index inception date
 const WindowDays = 366
 
+var ErrCancelled = errors.New("cancellation requested")
+
 var ErrOwnership = errors.New("execution ownership expired")
 var ErrMode = errors.New("mode must be backfill or incremental")
 
+type Event struct {
+	Kind       string `json:"kind"`
+	At         string `json:"at"`
+	Checkpoint string `json:"checkpoint"`
+	Message    string `json:"message"`
+}
+
 type Run struct {
-	ID                string `json:"id"`
-	Code              string `json:"code"`
-	Mode              string `json:"mode"`
-	StartDate         string `json:"startDate"`
-	EndDate           string `json:"endDate"`
-	EffectiveStart    string `json:"effectiveStart"`
-	State             string `json:"state"`
-	Stage             string `json:"stage"`
-	ProcessedRows     int64  `json:"processedRows"`
-	CompletedSegments int    `json:"completedSegments"`
-	TotalSegments     int    `json:"totalSegments"`
-	Checkpoint        string `json:"checkpoint"`
-	HistoryEvidence   string `json:"historyEvidence"`
-	ErrorCode         string `json:"errorCode"`
-	Message           string `json:"message"`
-	CreatedAt         string `json:"createdAt"`
-	UpdatedAt         string `json:"updatedAt"`
-	Owner             int64  `json:"-"`
+	Events            []Event `json:"events,omitempty"`
+	ID                string  `json:"id"`
+	Code              string  `json:"code"`
+	Mode              string  `json:"mode"`
+	StartDate         string  `json:"startDate"`
+	EndDate           string  `json:"endDate"`
+	EffectiveStart    string  `json:"effectiveStart"`
+	State             string  `json:"state"`
+	Stage             string  `json:"stage"`
+	ProcessedRows     int64   `json:"processedRows"`
+	CompletedSegments int     `json:"completedSegments"`
+	TotalSegments     int     `json:"totalSegments"`
+	Checkpoint        string  `json:"checkpoint"`
+	HistoryEvidence   string  `json:"historyEvidence"`
+	ErrorCode         string  `json:"errorCode"`
+	Message           string  `json:"message"`
+	CreatedAt         string  `json:"createdAt"`
+	UpdatedAt         string  `json:"updatedAt"`
+	Owner             int64   `json:"-"`
 }
 
 type Bar struct {
