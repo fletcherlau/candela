@@ -632,3 +632,15 @@ input[type="checkbox"] {
 @media (max-width: 600px) {
  .rotation-daily-mobile { grid-template-columns: minmax(0,1fr); }
 }
+.rotation-daily-stages { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; width: 100%; }
+.rotation-daily-stage { min-width: 0; font: 400 12px/1.8 var(--body-font); color: var(--ink-muted); }
+.rotation-daily-stage p { margin: 0; }
+.rotation-daily-stage strong { color: var(--ink); font-weight: 500; }
+.rotation-daily-stage ul { margin: 4px 0 0; padding-left: 16px; }
+.rotation-daily-source { overflow-wrap: anywhere; }
+.rotation-daily-mobile [data-slot="card"] { min-width: 0; }
+.rotation-daily-comparison { table-layout: fixed; }
+.rotation-daily-comparison th, .rotation-daily-comparison td { white-space: normal; overflow-wrap: anywhere; padding-inline: 4px; }
+.rotation-daily-comparison .rotation-daily-unknown { min-width: 0; }
+.rotation-daily-slippage { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; font-size: 14px; margin: 16px 0 8px; }
+@media (max-width: 600px) { .rotation-daily-stages { grid-template-columns: minmax(0,1fr); } }

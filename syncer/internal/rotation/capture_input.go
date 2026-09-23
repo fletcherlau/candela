@@ -75,6 +75,7 @@ func (s *Service) freezeCaptureInput(ctx context.Context, tx *sql.Tx, run Captur
 		if err = rows.Scan(&day.Date, &day.Open); err != nil {
 			return input, err
 		}
+		day.Suspended = day.Open && verifiedSuspension(q.TsCode, day.Date)
 		input.Calendar = append(input.Calendar, day)
 	}
 	return input, rows.Err()

@@ -61,9 +61,17 @@ const stages: Record<string, string> = {
   recovering: "等待恢复原目标",
   capturing: "取得并保存原始数据",
   awaiting_calculation: "参考待计算",
+  reference_published: "参考已发布",
+  reference_failed: "参考计算失败",
   inputs_incomplete: "整组参考不可发布",
   inputs_missing: "当前接入无法补取",
 };
+const stateLabel = (run: CaptureRun) =>
+  run.stage === "reference_published"
+    ? "原始数据采集完成／参考已发布"
+    : run.stage === "reference_failed"
+      ? "原始数据采集完成／参考计算失败"
+      : states[run.state];
 const codes = ["510880.SH", "518880.SH", "159915.SZ", "513100.SH"];
 const date = (value: string) =>
   `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6)}`;
@@ -303,7 +311,7 @@ export function RotationCaptures() {
                         {run.available}/4
                       </TableCell>
                       <TableCell className="whitespace-normal min-w-28">
-                        {states[run.state]}
+                        {stateLabel(run)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -323,7 +331,7 @@ export function RotationCaptures() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="secondary" className="whitespace-normal">
-                      {states[detail.state]}
+                      {stateLabel(detail)}
                     </Badge>
                     <Badge variant="outline">
                       {stages[detail.stage] || "处理中"}

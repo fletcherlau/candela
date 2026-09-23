@@ -181,7 +181,7 @@ func TestDailyWorkerPublishesOnlyCompleteCloseGroup(t *testing.T) {
 	defer server.Close()
 	read := func() DailyView {
 		t.Helper()
-		res, err := server.Client().Get(server.URL)
+		res, err := server.Client().Get(server.URL + "?tradeDate=20250102")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -254,7 +254,7 @@ func TestDailyFailedCalculationKeepsPublishedResultAndCanRecover(t *testing.T) {
 		t.Fatal("expected source failure")
 	}
 	w := httptest.NewRecorder()
-	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/?tradeDate=20250102", nil))
 	var v DailyView
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &v) != nil || v.Status != "failed" || v.Close == nil || *v.Close.Cards[0].Price != 100 || strings.Contains(w.Body.String(), "provider-token-secret") {
 		t.Fatalf("failure not reported safely: %d %s", w.Code, w.Body.String())
@@ -264,7 +264,7 @@ func TestDailyFailedCalculationKeepsPublishedResultAndCanRecover(t *testing.T) {
 		t.Fatal(err)
 	}
 	w = httptest.NewRecorder()
-	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/?tradeDate=20250102", nil))
 	if json.Unmarshal(w.Body.Bytes(), &v) != nil || v.Status != "ready" || v.Close == nil || *v.Close.Cards[0].Price != 101 {
 		t.Fatalf("same revision recovery: %s", w.Body.String())
 	}
@@ -344,7 +344,7 @@ func TestDailySupersededCalculationCannotReplacePublishedGroup(t *testing.T) {
 		t.Fatal(writeErr)
 	}
 	w := httptest.NewRecorder()
-	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/?tradeDate=20250102", nil))
 	var v DailyView
 	if json.Unmarshal(w.Body.Bytes(), &v) != nil || v.Close == nil || *v.Close.Cards[0].Price != 100 || v.Status != "updating" {
 		t.Fatalf("superseded publication escaped: %s", w.Body.String())
@@ -353,7 +353,7 @@ func TestDailySupersededCalculationCannotReplacePublishedGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	w = httptest.NewRecorder()
-	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/?tradeDate=20250102", nil))
 	if json.Unmarshal(w.Body.Bytes(), &v) != nil || v.Close == nil || *v.Close.Cards[0].Price != 102 || v.Status != "ready" {
 		t.Fatalf("latest revision not published: %s", w.Body.String())
 	}
@@ -389,7 +389,7 @@ func TestDailyMalformedSourceDateDoesNotEnterMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	svc.DailyHandler().ServeHTTP(w, httptest.NewRequest("GET", "/?tradeDate=20250102", nil))
 	var v DailyView
 	if json.Unmarshal(w.Body.Bytes(), &v) != nil || v.Close == nil {
 		t.Fatal(w.Body.String())

@@ -46,8 +46,9 @@ type FrozenBar struct {
 	FactorDate string   `json:"factorDate"`
 }
 type FrozenCalendarDay struct {
-	Date string `json:"date"`
-	Open bool   `json:"open"`
+	Suspended bool   `json:"suspended,omitempty"`
+	Date      string `json:"date"`
+	Open      bool   `json:"open"`
 }
 type CaptureInput struct {
 	Quote           core.RealtimeQuote  `json:"quote"`

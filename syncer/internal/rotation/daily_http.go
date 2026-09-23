@@ -1,7 +1,6 @@
 package rotation
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -35,35 +34,10 @@ func (s *Service) DailyHandler() http.Handler {
 				return
 			}
 		}
-		if date == "" {
-			var latest sql.NullString
-			if err := s.DB.QueryRowContext(r.Context(), "SELECT MAX(trade_date) FROM rotation_daily WHERE basis='close' AND trade_date<=?", s.today()).Scan(&latest); err != nil {
-				http.Error(w, "每日数据暂不可用", 503)
-				return
-			}
-			date = latest.String
-		}
-		v := DailyView{TradeDate: date, Status: "unavailable", Message: "该交易日尚无已发布数据", ReferenceStatus: "missing"}
-		var payload []byte
-		var revision, current int64
-		err := s.DB.QueryRowContext(r.Context(), `SELECT d.status,d.available,d.message,d.payload,d.revision,r.revision FROM rotation_daily d CROSS JOIN rotation_result r
- WHERE d.trade_date=? AND d.basis='close' AND r.id=1`, date).Scan(&v.Status, &v.Available, &v.Message, &payload, &revision, &current)
-		if err != nil && err != sql.ErrNoRows {
+		v, err := s.dailyView(r.Context(), date)
+		if err != nil {
 			http.Error(w, "每日数据暂不可用", 503)
 			return
-		}
-		if len(payload) > 0 {
-			if err := json.Unmarshal(payload, &v.Close); err != nil {
-				http.Error(w, "每日结果暂不可用", 503)
-				return
-			}
-		}
-		if err == nil && current != revision {
-			v.Status = "updating"
-			v.Message = "数据正在更新，等待整组计算完成"
-			if v.Close != nil {
-				v.Message = "数据正在更新，保留已发布完整结果"
-			}
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if r.Method != http.MethodHead {
