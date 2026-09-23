@@ -76,6 +76,22 @@ var migrations = [][]string{{
  KEY run_events(run_id,sequence),
  FOREIGN KEY(run_id) REFERENCES sync_run(id) ON DELETE CASCADE
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+}, {
+	`CREATE TABLE IF NOT EXISTS rotation_capture_run (
+ trade_date CHAR(8) PRIMARY KEY, target_at VARCHAR(35) NOT NULL, deadline_at VARCHAR(35) NOT NULL,
+ basis VARCHAR(24) NOT NULL DEFAULT 'reference_1445',
+ state VARCHAR(24) NOT NULL DEFAULT 'queued', stage VARCHAR(32) NOT NULL DEFAULT 'queued',
+ available INT NOT NULL DEFAULT 0, message VARCHAR(300) NOT NULL DEFAULT '', params JSON NOT NULL,
+ owner BIGINT NOT NULL DEFAULT 0, lease_until DATETIME(6) NULL, recoveries INT NOT NULL DEFAULT 0,
+ created_at DATETIME(6) NOT NULL, updated_at DATETIME(6) NOT NULL,
+ KEY capture_queue(state,trade_date)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+	`CREATE TABLE IF NOT EXISTS rotation_reference_input (
+ trade_date CHAR(8) NOT NULL, ts_code VARCHAR(20) NOT NULL,
+ state VARCHAR(24) NOT NULL DEFAULT 'pending', reason VARCHAR(300) NOT NULL DEFAULT '', payload JSON NULL,
+ PRIMARY KEY(trade_date,ts_code),
+ FOREIGN KEY(trade_date) REFERENCES rotation_capture_run(trade_date) ON DELETE CASCADE
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }}
 
 func migrate(ctx context.Context, db *sql.DB) error {

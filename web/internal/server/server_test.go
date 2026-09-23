@@ -29,6 +29,26 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	var syncCalls atomic.Int32
 	var syncFailure atomic.Bool
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/rotation/reference-captures") {
+			syncCalls.Add(1)
+			if r.Method != "GET" || r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" {
+				t.Error("capture credential boundary")
+			}
+			if syncFailure.Load() {
+				http.Error(w, "server-only-secret", 500)
+				return
+			}
+			if strings.HasSuffix(r.URL.Path, "/20250101") {
+				http.Error(w, "server-only-secret", 404)
+				return
+			}
+			if strings.HasSuffix(r.URL.Path, "/20250102") {
+				io.WriteString(w, `{"run":{"tradeDate":"20250102","state":"captured"}}`)
+				return
+			}
+			io.WriteString(w, `{"runs":[]}`)
+			return
+		}
 		if r.URL.Path == "/api/v1/rotation/daily" {
 			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" {
 				t.Error("incorrect daily credential boundary")
@@ -116,7 +136,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	wrong, _ := rsa.GenerateKey(rand.Reader, 2048)
 	valid := sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), key)
 	for _, token := range []string{"", "not-a-jwt", sign(jwks.URL, "other-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(-time.Hour).Unix(), key), sign("https://evil.invalid", "demo-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), wrong)} {
-		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/backtest/range", "/api/rotation/daily", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
+		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/backtest/range", "/api/rotation/daily", "/api/rotation/reference-captures", "/api/rotation/reference-captures/20250102", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
 			req := httptest.NewRequest("GET", path, nil)
 			req.Header.Set("Cf-Access-Jwt-Assertion", token)
 			rec := httptest.NewRecorder()
@@ -126,7 +146,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			}
 		}
 	}
-	for _, path := range []string{"/", "/market", "/admin", "/admin/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/daily", "/strategies/four-etf-rotation"} {
+	for _, path := range []string{"/", "/market", "/admin", "/admin/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/daily", "/api/rotation/reference-captures", "/api/rotation/reference-captures/20250102", "/strategies/four-etf-rotation"} {
 		req := httptest.NewRequest("GET", path, nil)
 		req.Header.Set("Cf-Access-Jwt-Assertion", valid)
 		rec := httptest.NewRecorder()
@@ -135,6 +155,49 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			t.Fatalf("authorized %s: %d %s", path, rec.Code, rec.Body.String())
 		}
 	}
+	t.Run("capture reads are bounded authenticated and sanitized", func(t *testing.T) {
+		for _, tc := range []struct {
+			method, path string
+			status       int
+		}{
+			{"GET", "/api/rotation/reference-captures", 200},
+			{"HEAD", "/api/rotation/reference-captures/20250102", 200},
+			{"GET", "/api/rotation/reference-captures/20250101", 404},
+			{"GET", "/api/rotation/reference-captures/20250230", 400},
+			{"GET", "/api/rotation/reference-captures/20250102/retry", 404},
+			{"GET", "/api/rotation/reference-captures?source=now", 400},
+			{"POST", "/api/rotation/reference-captures", 405},
+		} {
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Header.Set("Cf-Access-Jwt-Assertion", valid)
+			req.Header.Set("Origin", "https://demo.candlea.cn")
+			req.Header.Set("X-CSRF-Token", strings.Repeat("a", 32))
+			req.AddCookie(&http.Cookie{Name: "__Host-candela-csrf", Value: strings.Repeat("a", 32)})
+			before := syncCalls.Load()
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, req)
+			if rec.Code != tc.status || strings.Contains(rec.Body.String(), "server-only-secret") {
+				t.Fatalf("%s %s: %d %s", tc.method, tc.path, rec.Code, rec.Body.String())
+			}
+			if tc.status == 400 || tc.status == 405 || strings.HasSuffix(tc.path, "/retry") {
+				if syncCalls.Load() != before {
+					t.Fatal("invalid capture request forwarded")
+				}
+			}
+			if tc.method == "HEAD" && rec.Body.Len() != 0 {
+				t.Fatal("HEAD returned body")
+			}
+		}
+		syncFailure.Store(true)
+		defer syncFailure.Store(false)
+		req := httptest.NewRequest("GET", "/api/rotation/reference-captures", nil)
+		req.Header.Set("Cf-Access-Jwt-Assertion", valid)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+		if rec.Code != 502 || strings.Contains(rec.Body.String(), "server-only-secret") {
+			t.Fatal("upstream capture failure leaked", rec.Code)
+		}
+	})
 	t.Run("range proxy forwards bounded query", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/rotation/backtest/range?start=20240102&end=20250102", nil)
 		req.Header.Set("Cf-Access-Jwt-Assertion", valid)

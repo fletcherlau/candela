@@ -15,6 +15,7 @@ type CalendarSource interface {
 	Calendar(context.Context, string, string) (map[string]bool, error)
 }
 type Service struct {
+	Realtime       core.RealtimeSource
 	DB             *sql.DB
 	Calendar       CalendarSource
 	Now            func() time.Time

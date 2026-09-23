@@ -103,7 +103,7 @@ func (s *Service) PublishClose(ctx context.Context, date string) (publishErr err
 }
 
 func (s *Service) dailyResult(date string, panels map[string][]core.DailyBarAdj, prices map[string]float64, reasons map[string]string) DailyResult {
-	result := DailyResult{TradeDate: date, Basis: "close", Available: len(prices), Source: "Tushare 基金日线及复权因子", Version: "er20-yz20-240-q70-40-v1", QuantileWindow: s.quantileWindow(), PublishedAt: s.now().UTC().Format(time.RFC3339Nano)}
+	result := DailyResult{TradeDate: date, Basis: "close", Available: len(prices), Source: "Tushare 基金日线及复权因子", Version: indicatorVersion, QuantileWindow: s.quantileWindow(), PublishedAt: s.now().UTC().Format(time.RFC3339Nano)}
 	cards := core.ComputeRotationCards(panels, s.quantileWindow())
 	completeRank := true
 	for _, card := range cards {
