@@ -1,12 +1,8 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests",
-  testIgnore: [
-    "sync.spec.ts",
-    "design.spec.ts",
-    "rotation-daily.spec.ts",
-    "rotation-range.spec.ts",
-  ],
+  testMatch: "rotation-range.spec.ts",
+  workers: 1,
   use: { baseURL: "http://127.0.0.1:18081", headless: true },
   webServer: [
     {
@@ -17,9 +13,8 @@ export default defineConfig({
     },
     {
       command:
-        "CANDELA_BROWSER_TEST=1 go -C .. test ./internal/server -run TestBrowserHarness -count=1 -timeout=10m",
+        "CANDELA_BROWSER_TEST=1 go -C .. test ./internal/server -run '^TestBrowserHarness$' -count=1 -timeout=10m",
       url: "http://127.0.0.1:18081",
-      reuseExistingServer: false,
       timeout: 90000,
     },
   ],

@@ -23,10 +23,12 @@
 
 ## 可复现检查
 
-在独立测试 MySQL 中创建 `candela_daily_test`，不能指向生产库。数据库测试入口会校验库名。
+在独立测试 MySQL 中创建 `candela_daily_test` 和 `candela_range_test`，不能指向生产库。数据库测试入口会校验库名。
 
 ```sh
 export ROTATION_DAILY_TEST_DSN='root@tcp(127.0.0.1:13316)/candela_daily_test?parseTime=true&loc=UTC'
+# R02 接入后，同页回测区使用第二个隔离数据库。
+export ROTATION_RANGE_TEST_DSN='root@tcp(127.0.0.1:13316)/candela_range_test?parseTime=true&loc=UTC'
 go -C syncer test -race ./internal/rotation -run TestDaily -count=1
 npm --prefix web/frontend ci
 npm --prefix web/frontend run build

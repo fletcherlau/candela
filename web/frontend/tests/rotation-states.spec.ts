@@ -4,6 +4,24 @@ const fixture = () => ({
   status: "ready",
   message: "",
   updatedAt: "2026-09-18T12:30:00Z",
+  holdingChange: "标的与收盘权重相同",
+  range: {
+    start: "20250917",
+    end: "20260917",
+    startIndex: 1,
+    endIndex: 3,
+    returns: [0, 0.2, 0.1] as (number | null)[],
+    dd: [0, 0, -1 / 12] as (number | null)[],
+    comparisons: [
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ] as (number | null)[][],
+    gain: 0.1,
+    maxdd: (-1 / 12) as number | null,
+    missing: false,
+  },
   result: {
     version: "v1.4-close-5pp-cash0-cost10-v1",
     start: "20240102",
@@ -29,9 +47,41 @@ const fixture = () => ({
   },
 });
 async function reply(page: Page, data: unknown) {
-  await page.route("**/api/rotation/backtest", (r) =>
-    r.fulfill({ json: data }),
-  );
+  await page.route("**/api/rotation/backtest/range**", (r) => {
+    const response = structuredClone(data) as ReturnType<typeof fixture>;
+    const start = new URL(r.request().url()).searchParams.get("start");
+    // Literal worked examples: UI fixtures assert rendering; real range maths is
+    // exercised through MySQL/HTTP in rotation-range.spec.ts and range_test.go.
+    if (start === "20240102")
+      response.range = {
+        start: "20240102",
+        end: "20260917",
+        startIndex: 0,
+        endIndex: 3,
+        returns: [-0.001, 0.1, 0.32, 0.21],
+        dd: [-0.001, 0, 0, -1 / 12],
+        comparisons: [
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+        ],
+        gain: 0.21,
+        maxdd: -1 / 12,
+        missing: false,
+      };
+    if (start === "20260917")
+      Object.assign(response.range, {
+        start: "20260917",
+        startIndex: 3,
+        returns: [0],
+        dd: [0],
+        comparisons: [[0], [0], [0], [0]],
+        gain: null,
+        maxdd: null,
+      });
+    return r.fulfill({ json: response });
+  });
   await page.goto("/strategies/four-etf-rotation");
 }
 test.beforeEach(async ({ page }) => {
@@ -53,7 +103,7 @@ test("date semantics, full-history fee basis, linked metrics and keyboard cursor
   await expect(page.locator("#data-status")).toContainText(
     "标的与收盘权重相同",
   );
-  await page.getByRole("radio", { name: "全部", exact: true }).click();
+  await page.getByRole("radio", { name: "近十年", exact: true }).click();
   await expect(page.getByTestId("rotation-gain")).toHaveText("21.00%");
   await expect(page.getByLabel("开始日期")).toHaveValue("2024-01-02");
   const cursor = page.getByLabel("查看交易日（方向键逐日移动）");
@@ -102,7 +152,7 @@ test("loading, empty array, null result and initial failure", async ({
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route("**/api/rotation/backtest", async (r) => {
+  await page.route("**/api/rotation/backtest/range**", async (r) => {
     await gate;
     await r.fulfill({ json: { ...fixture(), result: null } });
   });
@@ -112,7 +162,7 @@ test("loading, empty array, null result and initial failure", async ({
   await expect(
     page.getByRole("heading", { name: "暂无完整回测结果" }),
   ).toBeVisible();
-  await page.unroute("**/api/rotation/backtest");
+  await page.unroute("**/api/rotation/backtest/range**");
   await reply(page, {
     ...fixture(),
     result: { ...fixture().result, days: [] },
@@ -120,8 +170,8 @@ test("loading, empty array, null result and initial failure", async ({
   await expect(
     page.getByRole("heading", { name: "暂无完整回测结果" }),
   ).toBeVisible();
-  await page.unroute("**/api/rotation/backtest");
-  await page.route("**/api/rotation/backtest", (r) =>
+  await page.unroute("**/api/rotation/backtest/range**");
+  await page.route("**/api/rotation/backtest/range**", (r) =>
     r.fulfill({ status: 502, body: "down" }),
   );
   await page.reload();
@@ -139,6 +189,18 @@ test("missing nav, weights, benchmarks and timestamp stay unknown", async ({
     cashWeight: null,
     holding: null,
     benchmarks: [1, null, 1, 1],
+  });
+  data.holdingChange = "前后交易日字段不足，无法比较";
+  Object.assign(data.range, {
+    missing: true,
+    maxdd: null,
+    dd: [0, null, null],
+    comparisons: [
+      [0, 0, 0],
+      [0, 0, null],
+      [0, 0, 0],
+      [0, 0, 0],
+    ],
   });
   await reply(page, data);
   await expect(page.getByRole("alert")).toContainText("部分历史字段缺失");

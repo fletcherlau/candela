@@ -99,7 +99,7 @@ test("daily failure keeps its dated publication while backtest remains usable", 
   await page.unroute("**/api/rotation/daily");
   await daily.getByRole("button", { name: "重新读取每日数据" }).click();
   await expect(daily.getByRole("alert")).toHaveCount(0);
-  await page.route("**/api/rotation/backtest", (r) =>
+  await page.route("**/api/rotation/backtest/range**", (r) =>
     r.fulfill({ status: 502, body: "unavailable" }),
   );
   await page.getByRole("button", { name: "刷新回测" }).click();

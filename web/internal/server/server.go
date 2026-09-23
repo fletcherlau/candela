@@ -97,7 +97,7 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/etf-rotation/dca-dashboard/index.html", http.StatusFound)
 	case "/api/rotation/daily":
 		a.rotationDaily(w, r)
-	case "/api/rotation/backtest":
+	case "/api/rotation/backtest", "/api/rotation/backtest/range":
 		a.rotationBacktest(w, r)
 	case "/api/catalog":
 		a.catalog(w, r)
@@ -224,9 +224,33 @@ func (a *application) catalog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *application) rotationBacktest(w http.ResponseWriter, r *http.Request) {
+	target := a.cfg.SyncerURL + "/api/v1/rotation/backtest"
+	isRange := r.URL.Path == "/api/rotation/backtest/range"
+	if isRange {
+		query, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+			http.Error(w, "查询参数无效", 400)
+			return
+		}
+		for key, values := range query {
+			if (key != "start" && key != "end") || len(values) != 1 {
+				http.Error(w, "查询参数无效", 400)
+				return
+			}
+			if _, err := time.Parse("20060102", values[0]); err != nil {
+				http.Error(w, "日期无效", 400)
+				return
+			}
+		}
+		if (query.Get("start") == "") != (query.Get("end") == "") {
+			http.Error(w, "请同时提供起止日期", 400)
+			return
+		}
+		target += "/range?" + query.Encode()
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.cfg.SyncerURL+"/api/v1/rotation/backtest", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		http.Error(w, "回测服务暂不可用", 502)
 		return
@@ -238,6 +262,10 @@ func (a *application) rotationBacktest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer res.Body.Close()
+	if isRange && res.StatusCode == 400 {
+		http.Error(w, "日期无效或观察区间超过十年", 400)
+		return
+	}
 	if res.StatusCode != 200 {
 		http.Error(w, "回测服务暂不可用", 502)
 		return

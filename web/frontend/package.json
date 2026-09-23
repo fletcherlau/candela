@@ -12,7 +12,8 @@
     "design:check": "designmd lint ../../docs/design/DESIGN.md && node scripts/design-tokens.mjs --check",
     "prebuild": "npm run design:check",
     "test:design": "playwright test --config playwright.design.config.ts",
-    "test:daily": "playwright test --config playwright.daily.config.ts"
+    "test:daily": "playwright test --config playwright.daily.config.ts",
+    "test:range": "playwright test --config playwright.range.config.ts"
   },
   "devDependencies": {
     "@google/design.md": "0.4.0",

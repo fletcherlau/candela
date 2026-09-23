@@ -41,6 +41,13 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]any{"status": "ready", "tradeDate": r.URL.Query().Get("tradeDate"), "close": nil})
 			return
 		}
+		if r.URL.Path == "/api/v1/rotation/backtest/range" {
+			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.URL.Query().Get("start") != "20240102" || r.URL.Query().Get("end") != "20250102" {
+				t.Error("range query or credentials lost")
+			}
+			io.WriteString(w, `{"status":"ready","result":null,"range":null}`)
+			return
+		}
 		if r.URL.Path == "/api/v1/rotation/backtest" {
 			if r.Header.Get("X-Api-Key") != "server-only-secret" || r.Header.Get("Cf-Access-Jwt-Assertion") != "" {
 				t.Error("incorrect backtest credential boundary")
@@ -101,7 +108,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 	wrong, _ := rsa.GenerateKey(rand.Reader, 2048)
 	valid := sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), key)
 	for _, token := range []string{"", "not-a-jwt", sign(jwks.URL, "other-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(-time.Hour).Unix(), key), sign("https://evil.invalid", "demo-app", time.Now().Add(time.Hour).Unix(), key), sign(jwks.URL, "demo-app", time.Now().Add(time.Hour).Unix(), wrong)} {
-		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/daily", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
+		for _, path := range []string{"/", "/admin", "/admin/data", "/data", "/api/catalog", "/api/rotation/backtest", "/api/rotation/backtest/range", "/api/rotation/daily", "/strategies/four-etf-rotation", "/api/sync-runs", "/api/sync-runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "/assets/app.js", "/research/index.html"} {
 			req := httptest.NewRequest("GET", path, nil)
 			req.Header.Set("Cf-Access-Jwt-Assertion", token)
 			rec := httptest.NewRecorder()
@@ -120,6 +127,15 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			t.Fatalf("authorized %s: %d %s", path, rec.Code, rec.Body.String())
 		}
 	}
+	t.Run("range proxy forwards bounded query", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/rotation/backtest/range?start=20240102&end=20250102", nil)
+		req.Header.Set("Cf-Access-Jwt-Assertion", valid)
+		w := httptest.NewRecorder()
+		app.ServeHTTP(w, req)
+		if w.Code != 200 || !strings.Contains(w.Body.String(), `"range":null`) {
+			t.Fatalf("range proxy: %d %s", w.Code, w.Body.String())
+		}
+	})
 	t.Run("daily date query is forwarded and upstream errors are sanitized", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/rotation/daily?tradeDate=20250102", nil)
 		req.Header.Set("Cf-Access-Jwt-Assertion", valid)

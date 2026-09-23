@@ -4,6 +4,7 @@ test("rotation page and API require Access", async ({ request }) => {
   for (const path of [
     "/strategies/four-etf-rotation",
     "/api/rotation/backtest",
+    "/api/rotation/backtest/range",
   ])
     expect((await request.get(path)).status()).toBe(401);
 });
@@ -50,7 +51,7 @@ test.describe("rotation history", () => {
     await expect(page.getByTestId("rotation-detail")).toContainText(
       "现金 30.00%",
     );
-    await page.getByRole("radio", { name: "全部", exact: true }).click();
+    await page.getByRole("radio", { name: "近十年", exact: true }).click();
     await expect(dateStart).toHaveValue("2024-10-01");
     const chart = page.getByRole("img", { name: "策略与 ETF 累计收益图" });
     const box = await chart.boundingBox();
@@ -84,7 +85,7 @@ test.describe("rotation history", () => {
       path: "/tmp/candela-rotation-mobile.png",
       fullPage: true,
     });
-    await page.route("**/api/rotation/backtest", (r) =>
+    await page.route("**/api/rotation/backtest/range**", (r) =>
       r.fulfill({ status: 502, body: "unavailable" }),
     );
     await page.getByRole("button", { name: "刷新回测" }).click();
@@ -92,8 +93,8 @@ test.describe("rotation history", () => {
     await expect(
       page.getByRole("img", { name: "策略与 ETF 累计收益图" }),
     ).toBeVisible();
-    await page.unroute("**/api/rotation/backtest");
-    await page.route("**/api/rotation/backtest", (r) =>
+    await page.unroute("**/api/rotation/backtest/range**");
+    await page.route("**/api/rotation/backtest/range**", (r) =>
       r.fulfill({
         json: { status: "failed", message: "行情缺失，等待同步", result: null },
       }),
