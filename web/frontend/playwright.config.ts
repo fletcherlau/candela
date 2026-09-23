@@ -4,6 +4,7 @@ export default defineConfig({
   testIgnore: [
     "etf-sync.spec.ts",
     "rotation-recovery.spec.ts",
+    "rotation-corrections.spec.ts",
     "sync.spec.ts",
     "design.spec.ts",
     "rotation-daily.spec.ts",

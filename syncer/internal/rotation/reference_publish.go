@@ -94,7 +94,7 @@ func (s *Service) publishReferenceRecovery(ctx context.Context, date string, rec
 		return err
 	}
 	if run.Params.Version != indicatorVersion || run.Params.QuantileWindow <= 0 {
-		_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message) VALUES (?,'reference_1445',0,'failed',?,'冻结参数版本不受当前计算器支持，参考未发布')`, date, run.Available)
+		_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,updated_at) VALUES (?,'reference_1445',0,'failed',?,'冻结参数版本不受当前计算器支持，参考未发布',UTC_TIMESTAMP(6))`, date, run.Available)
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func (s *Service) publishReferenceRecovery(ctx context.Context, date string, rec
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,payload,published_at) VALUES (?,'reference_1445',0,'ready',4,'固定 14:45 参考已发布',?,?)`, date, payload, s.now().UTC())
+	_, err = tx.ExecContext(ctx, `INSERT INTO rotation_daily(trade_date,basis,revision,status,available,message,payload,published_at,updated_at) VALUES (?,'reference_1445',0,'ready',4,'固定 14:45 参考已发布',?,?,UTC_TIMESTAMP(6))`, date, payload, s.now().UTC().Format("2006-01-02 15:04:05.999999"))
 	if err != nil {
 		return err
 	}
