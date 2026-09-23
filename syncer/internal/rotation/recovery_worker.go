@@ -111,9 +111,25 @@ func (s *Service) executeRecovery(ctx context.Context, run RecoveryRun) {
 	state, stage, message := "succeeded", "published", "固定参考已发布，原始输入保持不变"
 	if err == nil {
 		var published bool
-		err = s.DB.QueryRowContext(task, `SELECT d.status='ready' AND d.payload IS NOT NULL AND (d.basis='reference_1445' OR d.revision=r.revision),
+		historical := false
+		if run.Basis == "close" && s.ETFSync != nil {
+			origin, e := s.ETFSync.Get(task, run.OriginID)
+			err = e
+			if e == nil && origin.Mode == "historical" {
+				historical = true
+				published, err = s.historicalRecoveryPublished(task, s.DB, origin.StartDate)
+				message = "受影响留存日与连续回测已发布，固定参考保持不变"
+				if !published {
+					message = "受影响收盘或连续回测尚未完成当前数据发布，可按原任务重试"
+				}
+			}
+		}
+		if err == nil && !historical {
+			err = s.DB.QueryRowContext(task, `SELECT d.status='ready' AND d.payload IS NOT NULL AND (d.basis='reference_1445' OR d.revision=r.revision),
  CASE WHEN d.basis='close' AND d.revision<>r.revision THEN '行情在计算期间发生变化，尚未完成当前数据发布，可按原任务重试' ELSE d.message END
  FROM rotation_daily d JOIN rotation_result r ON r.id=1 WHERE d.trade_date=? AND d.basis=?`, run.TradeDate, run.Basis).Scan(&published, &message)
+		}
+
 		if err == nil && !published {
 			state, stage = "failed", "calculation_failed"
 		}

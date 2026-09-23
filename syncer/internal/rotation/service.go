@@ -38,13 +38,12 @@ func relevant(code string) bool {
 	}
 	return false
 }
-func horizon() string {
-	n := time.Now().In(time.FixedZone("Asia/Shanghai", 8*3600))
-	if n.Hour() < 18 {
-		n = n.AddDate(0, 0, -1)
-	}
-	return n.Format("20060102")
-}
+func horizon() string { return syncrun.Cutoff(time.Now()) }
+
+// Daily/range reads and continuous calculation share the service clock. Keep
+// the established 18:00 backtest cutoff, distinct from daily close eligibility.
+func (s *Service) horizon() string { return syncrun.Cutoff(s.now()) }
+
 func day(s string) time.Time { t, _ := time.Parse("20060102", s); return t }
 func (s *Service) lock(ctx context.Context, wait int) (*sql.Conn, error) {
 	c, e := s.DB.Conn(ctx)
@@ -134,6 +133,10 @@ func (s *Service) Serve(ctx context.Context) {
 	}
 }
 func (s *Service) Refresh(ctx context.Context) error {
+	return s.refreshRecovery(ctx, nil)
+}
+
+func (s *Service) refreshRecovery(ctx context.Context, recovery *RecoveryRun) error {
 	conn, err := s.lock(ctx, 0)
 	if err != nil {
 		return err
@@ -153,24 +156,24 @@ func (s *Service) Refresh(ctx context.Context) error {
 		if block == "failed" {
 			message = "ETF 同步未完成，等待恢复；已发布结果保留"
 		}
-		_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status=?,message=? WHERE id=1 AND revision=?", block, message, rev)
+		err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status=?,message=? WHERE id=1 AND revision=?", block, message, rev)
 		return err
 	}
 	if status == "syncing" { // The named lock was released by an interrupted synchronizer.
-		_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status='failed',message='上次行情同步中断，等待重新同步；旧结果保留' WHERE id=1")
+		err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='failed',message='上次行情同步中断，等待重新同步；旧结果保留' WHERE id=1 AND revision=?", rev)
 		return err
 	}
-	if status != "pending" && status != "computing" {
+	if status != "pending" && status != "computing" && !(recovery != nil && status == "failed") {
 		return nil
 	}
-	_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET status='computing',message='正在计算完整历史，保留上一套结果' WHERE id=1 AND revision=?", rev)
+	err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='computing',message='正在计算完整历史，保留上一套结果' WHERE id=1 AND revision=?", rev)
 	if err != nil {
 		return err
 	}
 	result, warning, err := s.calculate(ctx)
 	if err != nil {
 		// Errors produced by calculate describe data gaps, never upstream credentials.
-		_, e := conn.ExecContext(ctx, "UPDATE rotation_result SET status='failed',message=? WHERE id=1 AND revision=?", truncate(err.Error()), rev)
+		e := updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET status='failed',message=? WHERE id=1 AND revision=?", truncate(err.Error()), rev)
 		return e
 	}
 	payload, err := json.Marshal(result)
@@ -181,9 +184,29 @@ func (s *Service) Refresh(ctx context.Context) error {
 	if warning != "" {
 		state = "stale"
 	}
-	_, err = conn.ExecContext(ctx, "UPDATE rotation_result SET payload=?,status=?,message=?,updated_at=CURRENT_TIMESTAMP(6) WHERE id=1 AND revision=?", payload, state, warning, rev)
+	err = updateBacktestPublication(ctx, conn, recovery, "UPDATE rotation_result SET payload=?,status=?,message=?,updated_at=CURRENT_TIMESTAMP(6) WHERE id=1 AND revision=?", payload, state, warning, rev)
 	return err
 }
+
+// Recovery uses the existing calculation and publication path, adding the same
+// execution-right fence already applied to daily groups. It does not create a
+// second backtest queue or permit a displaced recovery to publish or fail it.
+func updateBacktestPublication(ctx context.Context, conn *sql.Conn, recovery *RecoveryRun, query string, args ...any) error {
+	if recovery == nil {
+		_, err := conn.ExecContext(ctx, query, args...)
+		return err
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
+		return err
+	}
+	return commitRecoveryPublication(ctx, tx, recovery)
+}
+
 func truncate(s string) string {
 	r := []rune(s)
 	if len(r) > 280 {
@@ -207,14 +230,15 @@ func (s *Service) Handler() http.Handler {
 			return
 		}
 		if v.Status == "ready" && v.Result != nil {
+			cutoff := s.horizon()
 			var expected sql.NullString
-			if err := s.DB.QueryRowContext(r.Context(), "SELECT MAX(cal_date) FROM rotation_calendar WHERE is_open=1 AND cal_date<=?", horizon()).Scan(&expected); err != nil {
+			if err := s.DB.QueryRowContext(r.Context(), "SELECT MAX(cal_date) FROM rotation_calendar WHERE is_open=1 AND cal_date<=?", cutoff).Scan(&expected); err != nil {
 				http.Error(w, "交易日历暂不可用", 503)
 				return
 			}
 			var coverage sql.NullString
 			s.DB.QueryRowContext(r.Context(), "SELECT MAX(cal_date) FROM rotation_calendar").Scan(&coverage)
-			if !coverage.Valid || coverage.String < horizon() {
+			if !coverage.Valid || coverage.String < cutoff {
 				v.Status = "stale"
 				v.Message = "交易日历尚未更新，显示最近完整结果"
 			} else if expected.Valid && v.Result.End < expected.String {
@@ -237,7 +261,8 @@ func (s *Service) calculate(ctx context.Context) (*core.BacktestResult, string, 
 	defer tx.Rollback()
 	panels := make([]map[string]core.DailyBarAdj, 4)
 	from := ""
-	end := horizon()
+	cutoff := s.horizon()
+	end := cutoff
 	for i, code := range core.RotationCodes {
 		var through string
 		if err = tx.QueryRowContext(ctx, "SELECT through_date FROM rotation_coverage WHERE ts_code=?", code).Scan(&through); err != nil {
@@ -290,7 +315,7 @@ func (s *Service) calculate(ctx context.Context) (*core.BacktestResult, string, 
 		return nil, "", fmt.Errorf("尚无共同有效的同步范围")
 	}
 	// Cache the authoritative calendar, including closed dates; never infer holidays.
-	if err = s.ensureCalendar(ctx, from, horizon()); err != nil {
+	if err = s.ensureCalendar(ctx, from, cutoff); err != nil {
 		return nil, "", err
 	}
 	rows, err := s.DB.QueryContext(ctx, "SELECT cal_date FROM rotation_calendar WHERE cal_date>=? AND cal_date<=? AND is_open=1 ORDER BY cal_date", from, end)
@@ -344,7 +369,7 @@ func (s *Service) calculate(ctx context.Context) (*core.BacktestResult, string, 
 		}
 		return nil, "", err
 	}
-	if warning == "" && end < horizon() {
+	if warning == "" && end < cutoff {
 		warning = "同步覆盖尚未到当前截止日，显示已验证区间"
 	}
 	return result, warning, nil
