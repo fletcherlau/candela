@@ -61,6 +61,9 @@ func (s *Service) refreshReferences(ctx context.Context) error {
 	return nil
 }
 func (s *Service) publishReference(ctx context.Context, date string) error {
+	return s.publishReferenceRecovery(ctx, date, nil)
+}
+func (s *Service) publishReferenceRecovery(ctx context.Context, date string, recovery *RecoveryRun) error {
 	tx, err := s.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 	if err != nil {
 		return err
@@ -74,11 +77,17 @@ func (s *Service) publishReference(ctx context.Context, date string) error {
 		return nil
 	}
 	var exists int
-	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM rotation_daily WHERE trade_date=? AND basis='reference_1445'", date).Scan(&exists); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM rotation_daily WHERE trade_date=? AND basis='reference_1445' AND payload IS NOT NULL", date).Scan(&exists); err != nil {
 		return err
 	}
 	if exists > 0 {
 		return nil
+	}
+	// Failed calculations have no published payload. The capture row lock
+	// serializes recovery with the publisher; a first published reference is
+	// immutable and was checked above. Replacing a failure never changes input.
+	if _, err = tx.ExecContext(ctx, "DELETE FROM rotation_daily WHERE trade_date=? AND basis='reference_1445' AND payload IS NULL", date); err != nil {
+		return err
 	}
 	run, err := readCaptureRun(ctx, tx, date)
 	if err != nil {
@@ -92,7 +101,7 @@ func (s *Service) publishReference(ctx context.Context, date string) error {
 		if _, err = tx.ExecContext(ctx, "UPDATE rotation_capture_run SET stage='reference_failed',message='原始数据已保存，冻结参数版本不受当前计算器支持，参考未发布',updated_at=UTC_TIMESTAMP(6) WHERE trade_date=?", date); err != nil {
 			return err
 		}
-		return tx.Commit()
+		return commitRecoveryPublication(ctx, tx, recovery)
 	}
 	panels := map[string][]core.DailyBarAdj{}
 	prices := map[string]float64{}
@@ -135,7 +144,7 @@ func (s *Service) publishReference(ctx context.Context, date string) error {
 	if _, err = tx.ExecContext(ctx, "UPDATE rotation_capture_run SET stage='reference_published',message='原始数据已保存，固定参考已发布',updated_at=UTC_TIMESTAMP(6) WHERE trade_date=?", date); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return commitRecoveryPublication(ctx, tx, recovery)
 }
 
 // An invalid frozen history produces unknown indicators, never invented bars or

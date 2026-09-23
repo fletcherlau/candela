@@ -197,7 +197,7 @@ func TestAccessProtectsPagesAndCatalog(t *testing.T) {
 			{"HEAD", "/api/rotation/reference-captures/20250102", 200},
 			{"GET", "/api/rotation/reference-captures/20250101", 404},
 			{"GET", "/api/rotation/reference-captures/20250230", 400},
-			{"GET", "/api/rotation/reference-captures/20250102/retry", 404},
+			{"GET", "/api/rotation/reference-captures/20250102/retry", 405},
 			{"GET", "/api/rotation/reference-captures?source=now", 400},
 			{"POST", "/api/rotation/reference-captures", 405},
 		} {

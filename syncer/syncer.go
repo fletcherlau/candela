@@ -84,7 +84,7 @@ func main() {
 	// 盘中信号：gtimg 实时行情 + 库内日线，分位窗口与 today 用默认值。
 	signalComputer := core.NewSignalComputer(newGtimgSource(""), st, 0, nil)
 
-	rotationService := &rotation.Service{DB: db, Calendar: &rotationCalendar{client: tushareClient}, Realtime: newGtimgSource("")}
+	rotationService := &rotation.Service{ETFSync: syncer, DB: db, Calendar: &rotationCalendar{client: tushareClient}, Realtime: newGtimgSource("")}
 	if *rotationRefresh {
 		sum := syncer.Run(context.Background(), core.RotationCodes)
 		if sum.Success != sum.Total {
@@ -142,9 +142,13 @@ func main() {
 	server.AddRoutes(rotationService.DailyRoutes(svcCtx.ApiKeyAuth))
 	server.AddRoute(rest.Route{Method: http.MethodGet, Path: "/api/v1/rotation/backtest/range", Handler: svcCtx.ApiKeyAuth(rotationService.RangeHandler().ServeHTTP)})
 	server.AddRoutes(rotationService.CaptureRoutes(svcCtx.ApiKeyAuth))
+	server.AddRoutes(rotationService.RecoveryRoutes(svcCtx.ApiKeyAuth))
 	runStore := syncrun.NewStore(db)
 	server.AddRoutes(runStore.Routes(svcCtx.ApiKeyAuth))
 	workerCtx, stopWorker := context.WithCancel(context.Background())
+	recoveryDone := make(chan struct{})
+	go func() { defer close(recoveryDone); rotationService.ServeRecoveries(workerCtx) }()
+	defer func() { stopWorker(); <-recoveryDone }()
 	referenceDone := make(chan struct{})
 	go func() { defer close(referenceDone); rotationService.ServeReferences(workerCtx) }()
 	defer func() { stopWorker(); <-referenceDone }()

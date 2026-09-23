@@ -63,6 +63,24 @@ func TestBrowserHarness(t *testing.T) {
 	fixture := `{"groups":[{"id":"csi","name":"中证全指","status":"not_connected","items":[{"id":"csi:000985.CSI","code":"000985.CSI","name":"中证全指","kind":"指数日线","status":"not_connected","rows":null,"startDate":"","endDate":""}]},{"id":"etf","name":"ETF","status":"available","items":[{"id":"etf-daily:510300.SH","code":"510300.SH","name":"沪深300ETF","kind":"日线行情","status":"available","rows":200,"syncEnabled":true,"startDate":"20240102","endDate":"20240906"},{"id":"etf-factor:159999.SZ","code":"159999.SZ","name":"测试空数据ETF","kind":"复权因子","status":"no_data","rows":0,"syncEnabled":false,"startDate":"","endDate":""}]},{"id":"sw","name":"申万行业","status":"error","message":"申万数据读取失败，请稍后重试。","items":[]}]}`
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if os.Getenv("CANDELA_RECOVERY_BROWSER_TEST") == "1" && (strings.HasPrefix(r.URL.Path, "/api/v1/rotation/") && !strings.HasPrefix(r.URL.Path, "/api/v1/rotation/backtest") || strings.HasPrefix(r.URL.Path, "/api/v1/data/etf-syncs")) {
+			target, _ := url.Parse("http://127.0.0.1:18090")
+			httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/rotation/recoveries") {
+			if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+				address := "http://127.0.0.1:18086"
+				if os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+					address = "http://127.0.0.1:18087"
+				}
+				target, _ := url.Parse(address)
+				httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+			} else {
+				w.Write([]byte(`{"runs":[]}`))
+			}
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1/rotation/reference-captures") {
 			if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
 				address := "http://127.0.0.1:18086"
@@ -77,8 +95,11 @@ func TestBrowserHarness(t *testing.T) {
 			return
 		}
 		if r.URL.Path == "/api/v1/rotation/daily" || r.URL.Path == "/api/v1/rotation/daily/dates" {
-			if os.Getenv("CANDELA_DAILY_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
+			if os.Getenv("CANDELA_DAILY_BROWSER_TEST") == "1" || os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" || os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" {
 				address := "http://127.0.0.1:18084"
+				if os.Getenv("CANDELA_CAPTURE_BROWSER_TEST") == "1" {
+					address = "http://127.0.0.1:18086"
+				}
 				if os.Getenv("CANDELA_REFERENCE_BROWSER_TEST") == "1" {
 					address = "http://127.0.0.1:18087"
 				}
@@ -94,7 +115,7 @@ func TestBrowserHarness(t *testing.T) {
 				for _, code := range []string{"510880.SH", "518880.SH", "159915.SZ", "513100.SH"} {
 					slips = append(slips, map[string]any{"code": code, "bps": nil, "reason": "未接入每日数据"})
 				}
-				json.NewEncoder(w).Encode(map[string]any{"requestedDate": "", "currentDate": "", "currentTradingDate": "", "tradeDate": "", "selectionMode": "default", "fallback": false, "fallbackReason": "", "calendarStatus": "unavailable", "status": "unavailable", "message": "浏览器测试未接入每日数据", "close": nil, "reference": nil, "referenceStatus": "missing", "referenceState": stage, "closeState": stage, "priceSlippage": slips})
+				json.NewEncoder(w).Encode(map[string]any{"requestedDate": r.URL.Query().Get("tradeDate"), "currentDate": "", "currentTradingDate": "", "tradeDate": r.URL.Query().Get("tradeDate"), "selectionMode": "default", "fallback": false, "fallbackReason": "", "calendarStatus": "unavailable", "status": "unavailable", "message": "浏览器测试未接入每日数据", "close": nil, "reference": nil, "referenceStatus": "missing", "referenceState": stage, "closeState": stage, "priceSlippage": slips})
 			}
 			return
 		}

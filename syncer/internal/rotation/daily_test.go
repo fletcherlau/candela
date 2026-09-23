@@ -38,7 +38,7 @@ func dailyDatabase(t *testing.T) *sql.DB {
 	if _, err = db.Exec("UPDATE etf_sync_object SET active_run=NULL"); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"etf_sync_batch", "etf_sync_run", "rotation_capture_run", "rotation_daily", "rotation_coverage", "rotation_calendar", "etf_daily", "etf_adj_factor"} {
+	for _, table := range []string{"rotation_recovery_run", "etf_sync_batch", "etf_sync_run", "rotation_capture_run", "rotation_daily", "rotation_coverage", "rotation_calendar", "etf_daily", "etf_adj_factor"} {
 		if _, err = db.Exec("DELETE FROM " + table); err != nil {
 			t.Fatal(err)
 		}

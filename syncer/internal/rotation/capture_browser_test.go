@@ -45,7 +45,8 @@ func TestCaptureBrowserHarness(t *testing.T) {
 	}
 	svc := &Service{DB: db, Now: func() time.Time { return time.Date(2025, 1, 8, 0, 0, 0, 0, time.UTC) }}
 	routes := router.NewRouter()
-	for _, route := range svc.CaptureRoutes(middleware.NewApiKeyAuthMiddleware("fixture-only").Handle) {
+	auth := middleware.NewApiKeyAuthMiddleware("fixture-only").Handle
+	for _, route := range append(append(svc.CaptureRoutes(auth), svc.RecoveryRoutes(auth)...), svc.DailyRoutes(auth)...) {
 		if err := routes.Handle(route.Method, route.Path, route.Handler); err != nil {
 			t.Fatal(err)
 		}

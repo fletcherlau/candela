@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"syncer/internal/core"
+	"syncer/internal/syncrun"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type CalendarSource interface {
 	Calendar(context.Context, string, string) (map[string]bool, error)
 }
 type Service struct {
+	ETFSync        *syncrun.ETFService
 	Realtime       core.RealtimeSource
 	DB             *sql.DB
 	Calendar       CalendarSource
